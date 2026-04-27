@@ -13,10 +13,16 @@ npm.cmd run submit
 
 Use `dry-run` first. It fills the form, saves screenshots, and skips final submission.
 
+To process only the first few jobs from `jobs.txt`, pass `--limit`:
+
+```powershell
+npm.cmd run dry-run -- --limit 3
+```
+
 ## Input Files
 
 - `jobs.txt`: one job application URL per line
-- `sravya_narayana_application_profile.md`: applicant profile
+- `sravya_narayana_application_profile.md`: applicant profile, including resume and cover letter file paths
 - `answers.json`: reusable answers for questions not covered by the profile
 
 ## Output

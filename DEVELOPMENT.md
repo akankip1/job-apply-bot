@@ -44,6 +44,7 @@ Run before committing:
 
 ```powershell
 node --check apply.js
+node --check lib\profile.js
 node --check lib\formSchema.js
 node --check lib\answerPlan.js
 node --check platforms\greenhouse.js

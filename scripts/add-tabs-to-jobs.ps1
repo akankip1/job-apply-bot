@@ -1,7 +1,7 @@
 # add-tabs-to-jobs.ps1
 # Reads URLs from clipboard + existing jobs.txt, deduplicates, and writes one URL per line.
 
-$jobsFile = ".\jobs.txt"
+$jobsFile = "..\jobs.txt"
 
 if (!(Test-Path $jobsFile)) {
     "# Add one job application URL per line." | Set-Content $jobsFile

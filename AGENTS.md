@@ -23,6 +23,7 @@ For syntax checks:
 
 ```powershell
 node --check apply.js
+node --check lib\profile.js
 node --check lib\formSchema.js
 node --check lib\answerPlan.js
 node --check platforms\greenhouse.js
@@ -58,7 +59,7 @@ Run `npm.cmd run dry-run` before using submit mode, then inspect the latest `run
 - Do not click final submit buttons in dry-run mode.
 - Unknown required fields must block submission.
 - Sensitive, legal, salary, background-check, or ambiguous fields should require manual review unless there is an explicit approved answer source.
-- Keep applicant data, resume paths, and reusable answers local. Do not add code that sends profile data to external services.
+- Keep applicant data, resume and cover letter paths, and reusable answers local. Do not add code that sends profile data to external services.
 - Treat generated files under `runs/` and browser state under `.browser-profile/` as local artifacts, not source files.
 
 ## Generated Artifacts and Ignored Paths
@@ -116,6 +117,7 @@ For broad behavior changes, use:
 
 ```powershell
 node --check apply.js
+node --check lib\profile.js
 node --check lib\formSchema.js
 node --check lib\answerPlan.js
 node --check platforms\greenhouse.js

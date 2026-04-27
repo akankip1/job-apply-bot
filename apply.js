@@ -11,6 +11,7 @@ const { normalizeText } = require("./lib/text");
 const ROOT = __dirname;
 const SUBMIT_MODE = process.argv.includes("--submit");
 const KEEP_OPEN = process.argv.includes("--keep-open") || !SUBMIT_MODE;
+const JOB_LIMIT = parseLimitArg(process.argv.slice(2));
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-");
 const RUN_DIR = path.join(ROOT, "runs", RUN_ID);
 const SCREENSHOT_DIR = path.join(RUN_DIR, "screenshots");
@@ -26,6 +27,18 @@ const FINAL_STATUS = {
   PAGE_LOAD: "failed_page_load",
   UNKNOWN: "failed_unknown_error",
 };
+
+function parseLimitArg(args) {
+  const limitIndex = args.indexOf("--limit");
+  if (limitIndex === -1) return null;
+
+  const rawLimit = args[limitIndex + 1];
+  const limit = Number(rawLimit);
+  if (!rawLimit || !Number.isInteger(limit) || limit < 1) {
+    throw new Error("--limit must be a positive whole number.");
+  }
+  return limit;
+}
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 const log = createLogger(LOG_FILE, SUBMIT_MODE);
@@ -199,11 +212,14 @@ async function processJob(context, url, profile, answers, jobIndex) {
 async function main() {
   const profile = loadProfile(ROOT);
   const { answersPath, answers } = loadAnswers(ROOT);
-  const jobs = readJobs(ROOT);
+  const allJobs = readJobs(ROOT);
+  const jobs = JOB_LIMIT ? allJobs.slice(0, JOB_LIMIT) : allJobs;
   log("run_started", {
     profilePath: profile.profilePath,
     answersPath,
+    jobsAvailable: allJobs.length,
     jobsCount: jobs.length,
+    jobLimit: JOB_LIMIT,
     runDir: RUN_DIR,
   });
 

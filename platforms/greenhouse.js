@@ -20,7 +20,7 @@ const LOCATION_OPTION_SELECTORS = [
   "[class*='autocomplete'] li",
   "li",
 ];
-const COMBOBOX_LABEL_RE = /country|location|eligible|authorized|sponsor|hybrid|relocat|previously employed|ever been employed|gender|ethnicity|veteran/;
+const COMBOBOX_LABEL_RE = /country|location|eligible|authorized|sponsor|hybrid|relocat|previously employed|ever been employed|gender|ethnicity|veteran|school|degree|discipline|month/;
 
 function isGreenhouseFrame(frame) {
   return /greenhouse\.io|greenhouse\.com|job_app|gh_jid/i.test(frame.url());
@@ -249,6 +249,22 @@ function optionCandidates(answer, decision) {
 
   if (key === "locationCity" || /location city|\bcity\b/.test(label)) {
     if (/seattle/i.test(original)) candidates.push("Seattle", "Seattle, WA", "Seattle, Washington");
+  }
+
+  if (key === "educationDegree" || /degree/.test(label)) {
+    if (/master/i.test(original)) candidates.push("Master's Degree", "Masters", "Master");
+    if (/bachelor/i.test(original)) candidates.push("Bachelor's Degree", "Bachelors", "Bachelor");
+  }
+
+  if (key === "educationSchool" || /school|university|college/.test(label)) {
+    if (/binghamton/i.test(original)) candidates.push("Binghamton University", "State University of New York at Binghamton");
+    if (/amrita/i.test(original)) candidates.push("Amrita University", "Amrita Vishwa Vidyapeetham", "Other");
+  }
+
+  if (key === "educationDiscipline" || /discipline|field of study|major/.test(label)) {
+    if (/electronics.*communication|communication.*electronics/i.test(original)) {
+      candidates.push("Electronics", "Electronics and Communication Engineering", "Computer Engineering");
+    }
   }
 
   return [...new Set(candidates.filter(Boolean))];
