@@ -80,3 +80,45 @@ Total unique URLs: <number>
 - It does not submit applications.
 - It does not scrape job boards.
 - It does not access browser tabs directly.
+
+## `mark-run-results.ps1`
+
+Reads the results from a bot run and updates the job queue files. It removes URLs from `jobs.txt` and moves them into `applied_jobs.txt`, `failed_jobs.txt`, or `skipped_jobs.txt` based on the run outcome.
+
+### Usage
+
+By default, it uses the results from the latest run:
+
+```powershell
+.\scripts\mark-run-results.ps1
+```
+
+To mark from a specific run:
+
+```powershell
+.\scripts\mark-run-results.ps1 -StatusFile .\runs\2026-04-27T11-00-21-833Z\job-status.json
+```
+
+### Behavior
+
+1. **Latest Run Discovery**: If no `-StatusFile` is provided, it searches for the newest `job-status.json` inside the `runs/` directory.
+2. **Queue Removal**: Every URL listed in the status file is removed from `jobs.txt`.
+3. **Status Assignment**: URLs are added to the corresponding status file:
+   - `applied`: successfully submitted or dry-run completed.
+   - `failed`: blocked by missing fields, site errors, or bot failures.
+   - `skipped`: manually skipped (not currently assigned by bot).
+4. **Deduplication**: Ensures URLs only exist in one status file at a time and removes duplicates while preserving comments.
+
+### Output Summary
+
+```text
+Marking results from: F:\...\runs\...\job-status.json
+--------------------------------
+Summary:
+Results read: 9
+Removed from jobs.txt: 9
+Added to applied_jobs.txt: 9
+Added to failed_jobs.txt: 0
+Added to skipped_jobs.txt: 0
+Total queued URLs remaining: 0
+```

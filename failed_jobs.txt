@@ -1,0 +1,1 @@
+﻿# URLs for jobs that failed due to site issues, unsupported forms, CAPTCHA, login barriers, or bot errors.

@@ -1,11 +1,1 @@
-# Add one job application URL per line.
-
-https://navan.com/careers/openings/4733134?gh_jid=4733134
-https://navan.com/careers/openings/7587407?gh_jid=7587407
-https://navan.com/careers/openings/7587408?gh_jid=7587408
-https://navan.com/careers/openings/7588591?gh_jid=7588591
-https://navan.com/careers/openings/7588592?gh_jid=7588592
-https://navan.com/careers/openings/7648816?gh_jid=7648816
-https://navan.com/careers/openings/7724852?gh_jid=7724852
-https://navan.com/careers/openings/7777949?gh_jid=7777949&gh_src=oab7edza1us
-https://navan.com/careers/openings/7783028?gh_jid=7783028
+﻿# Add one job application URL per line.

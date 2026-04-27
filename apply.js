@@ -244,6 +244,27 @@ async function main() {
   }
 
   log("run_finished", { results });
+  
+  const statusMapping = {
+    [FINAL_STATUS.SUBMITTED]: "applied",
+    [FINAL_STATUS.DRY_RUN]: "applied",
+    [FINAL_STATUS.MISSING_REQUIRED]: "failed",
+    [FINAL_STATUS.SENSITIVE]: "failed",
+    [FINAL_STATUS.RESUME_MISSING]: "failed",
+    [FINAL_STATUS.PAGE_LOAD]: "failed",
+    [FINAL_STATUS.UNKNOWN]: "failed",
+  };
+
+  const statusResults = results.map((r) => ({
+    url: r.url,
+    status: r.status,
+    bucket: statusMapping[r.status] || "failed",
+  }));
+
+  const statusPath = path.join(RUN_DIR, "job-status.json");
+  writeJson(statusPath, { results: statusResults });
+  log("status_file_written", { statusPath });
+
   console.table(results);
   if (KEEP_OPEN) console.log("Browser left open for review. Close it manually when finished.");
 }
