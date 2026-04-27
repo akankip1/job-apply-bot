@@ -38,6 +38,11 @@
 file:///C:/Users/venka/Downloads/Sravya_Narayana_resume.pdf
 ```
 
+## Cover Letter
+```text
+file:///C:/Users/venka/Downloads/Cover%20_Letter_SRAVYA.pdf
+```
+
 ---
 
 # Work Experience
