@@ -1,5 +1,15 @@
 # Checkpoints
 
+## 2026-04-28 (latest session) - LLM Factual Answer Planning Added
+
+- **Planner Update:** Added `lib/answerPolicy.js` and `lib/llmAnswerPlanner.js` to let the answer-planning layer reason about factual geography questions after explicit rules and reusable answers fail.
+- **Scope Control:** The LLM is only consulted inside `lib/answerPlan.js`, not in `platforms/*`, and submit guard behavior is unchanged.
+- **Safety Gates:** Sensitive, legal, sponsorship, work authorization, salary, demographic, and background-check questions remain blocked from LLM guessing unless `answers.json` already provides an explicit answer.
+- **Strict Output:** The LLM planner is required to return strict JSON and only high-confidence, safe-to-fill answers are accepted.
+- **Logging:** Added planner logs for `llm_answer_planner_used`, `llm_answer_accepted`, `llm_answer_rejected`, and `llm_answer_manual_review`.
+- **Regression:** `scripts/test-answer-plan.js` now covers factual location cases such as `Are you near Bellevue?`, `Are you near Florida?`, and `Are you based in the United States?`.
+- **Status:** `node scripts/test-answer-plan.js` passed with `16 passed, 0 failed`.
+
 ## 2026-04-28 (3:00 AM PT) — Ashby "Seamless" Model & Idempotency Verified
 
 **Full dry-run success on Superhuman job (dc070a50) with 0 un-selections.**

@@ -102,6 +102,9 @@ async function runTests() {
   // Work authorization
   await assertMatch("Are you authorized to be employed in the United States?", "workAuthorization", mockProfile.sensitive.authorizedUS);
   await assertMatch("Are you located in the European Union?", "locatedInEU", "No");
+  await assertMatch("Are you near Bellevue?", "locationFact", "Yes");
+  await assertMatch("Are you near Florida?", "locationFact", "No");
+  await assertMatch("Are you based in the United States?", "locationFact", "Yes");
 
   // Basic identity (Ashby specific IDs)
   await assertMatch("Legal Full Name", "fullName", mockProfile.standard.fullName, "text", "_systemfield_name");

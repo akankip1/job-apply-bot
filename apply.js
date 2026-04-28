@@ -118,7 +118,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
     schemaPath,
   });
 
-  const plan = await createAnswerPlan(schema, profile, answers);
+  const plan = await createAnswerPlan(schema, profile, answers, { log });
   
   // FILTER PLAN: Do not re-fill fields that have already been filled with the same answer
   plan.decisions = plan.decisions.filter(decision => {
@@ -176,7 +176,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
         schemaPath: dynamicSchemaPath,
       });
 
-      const dynamicPlan = await createAnswerPlan(dynamicOnlySchema, profile, answers);
+      const dynamicPlan = await createAnswerPlan(dynamicOnlySchema, profile, answers, { log });
       
       // Filter dynamic plan too
       dynamicPlan.decisions = dynamicPlan.decisions.filter(decision => {
