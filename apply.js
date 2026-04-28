@@ -99,6 +99,10 @@ function fillFailuresAsBlockers(plan, fillResults) {
     }));
 }
 
+function fieldIdentity(field) {
+  return [field.fieldId, field.selector, field.id, field.name, normalizeText(field.label)].filter(Boolean).join("|");
+}
+
 async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, step) {
   const schema = await adapter.extract(page);
   const schemaPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-form-schema.json`);
@@ -126,11 +130,46 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
   const manualBlockers = validatePlan(plan);
   const fillResults = await adapter.fill(page, plan, log);
   const fillBlockers = fillFailuresAsBlockers(plan, fillResults);
+  const blockers = [...manualBlockers, ...(resumeBlocker ? [resumeBlocker] : []), ...fillBlockers];
+
+  if (!blockers.length) {
+    await page.waitForTimeout(500);
+    const knownFields = new Set(schema.fields.map(fieldIdentity));
+    const dynamicSchema = await adapter.extract(page);
+    const dynamicFields = dynamicSchema.fields.filter((field) => !knownFields.has(fieldIdentity(field)));
+
+    if (dynamicFields.length) {
+      const dynamicOnlySchema = { ...dynamicSchema, fields: dynamicFields };
+      const dynamicSchemaPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-dynamic-form-schema.json`);
+      writeJson(dynamicSchemaPath, dynamicOnlySchema);
+      log("dynamic_form_schema_extracted", {
+        jobIndex,
+        step,
+        platform: dynamicSchema.platform,
+        fieldsCount: dynamicFields.length,
+        schemaPath: dynamicSchemaPath,
+      });
+
+      const dynamicPlan = createAnswerPlan(dynamicOnlySchema, profile, answers);
+      const dynamicPlanPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-dynamic-answer-plan.json`);
+      writeJson(dynamicPlanPath, dynamicPlan);
+      log("dynamic_answer_plan_created", {
+        jobIndex,
+        step,
+        decisionsCount: dynamicPlan.decisions.length,
+        manualReviewCount: dynamicPlan.manualReview.length,
+        planPath: dynamicPlanPath,
+      });
+
+      const dynamicFillResults = await adapter.fill(page, dynamicPlan, log);
+      blockers.push(...validatePlan(dynamicPlan), ...fillFailuresAsBlockers(dynamicPlan, dynamicFillResults));
+    }
+  }
 
   return {
     schema,
     plan,
-    blockers: [...manualBlockers, ...(resumeBlocker ? [resumeBlocker] : []), ...fillBlockers],
+    blockers,
     schemaPath,
     planPath,
   };

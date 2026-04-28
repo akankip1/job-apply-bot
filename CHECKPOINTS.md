@@ -48,3 +48,36 @@
 - No automated tests yet.
 - Next: test more Greenhouse jobs before adding another ATS adapter.
 - Likely next adapters: Lever, Ashby, Workday.
+
+# Session Checkpoint - 2026-04-28
+
+## Ashby Adapter & Form Robustness
+
+- **Robust Ashby Detection:** Updated `ashby.detect` to check for Ashby frames (`ashbyhq.com`), allowing the adapter to trigger on embedded career pages (e.g., Superhuman).
+- **Yes/No Grouping:** Rewrote `extractAshbyButtonGroups` to group disparate `button` and `input[type="radio"]` controls into single "Yes/No" fields.
+  - Uses deepest-container sorting to find the most specific grouping.
+  - Deduces labels from headers, legends, or preceding text.
+  - Deduplicates grouped controls from the general field list.
+- **Flexible Matching:** Implemented `questionPrefix` matching (first 50 chars) to find groups even when labels are split across elements.
+- **Expanded Option Matchers:** Added regex matchers to handle Ashby's complex label variations:
+  - **No:** `don't have a disability`, `not a veteran`, `do not identify`, `prefer not to`, etc.
+  - **Yes:** `i have a disability`, `i am a veteran`, `identify as transgender`, etc.
+- **Input Label Discovery:** Updated `clickAshbyButtonGroup` to check both `innerText` and native `labels[0].innerText` for input-based radios.
+
+## Classification & Answer Mapping (`lib/answerPlan.js`)
+
+- **Gender Mapping:** "Female" profile value now correctly matches "Woman" checkboxes/radios.
+- **Boolean Checkboxes:** Demographic checkboxes (e.g., "Heterosexual", "Woman", "Hispanic") are now planned with explicit "Yes" or "No" answers by checking the profile/answers memory, rather than just mapping strings.
+- **Synonym Support:** "employed" recognized as a synonym for "work" in authorization questions.
+- **Onsite/Relocation:** "live within X miles" pattern added to capture modern hybrid/onsite questions.
+- **LGBTQ+:** Added "transgender" to the identification regex.
+
+## Generic/Greenhouse Improvements
+
+- **Checkbox Logic:** Updated `clickChoice` to handle individual checkboxes that were planned with "Yes/No" or "True/False" strings, ensuring they are checked/unchecked correctly.
+
+## Status
+
+- **Ashby:** Verified dry-run on Superhuman job. Most fields (Gender, Ethnicity, Veteran, Transgender, Auth, Relocation) now fill correctly.
+- **Known Issue:** Disability question matching is being refined; the latest dry-run showed successful matching of the "No" variation for other fields but still requires verification for the specific long disability string.
+

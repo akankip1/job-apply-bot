@@ -9,5 +9,22 @@
   "hispanic_latinx": "No",
   "certify_truthful_application": "Yes",
   "demographic_data_consent": "Yes",
-  "retention_consent": "Yes"
+  "retention_consent": "Yes",
+  "desired_total_compensation": "200000",
+  "recruitment_privacy_policy_acknowledgement": "Yes",
+  "prohibited_possessor_questionnaire_acknowledgement": "Acknowledge",
+  "recently_interviewed_with_company": "No",
+  "work_authorization_any_us_employer_now_future": "Yes",
+  "identity_and_work_authorization_verification": "Yes",
+  "age_18_or_older": "Yes",
+  "deemed_export_license_eligible": "Yes",
+  "conflicting_obligations": "No",
+  "fugitive_from_justice": "No",
+  "unlawfully_in_united_states": "No",
+  "unlawful_controlled_substance_user": "No",
+  "firearms_questionnaire_acknowledgement": "Yes",
+  "adjudicated_mental_defective_or_committed": "No",
+  "dishonorable_military_discharge": "No",
+  "renounced_us_citizenship": "No",
+  "onsite_seattle_four_days": "Yes"
 }

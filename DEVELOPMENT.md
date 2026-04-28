@@ -47,7 +47,7 @@ Use the artifact that failed to decide where the change belongs:
 - If the answer should be reusable and not from the profile, add a key to `lib/answers.js` defaults and put the approved value in `answers.json`.
 - If the field label or required state is wrong, update extraction in `lib/formSchema.js` or the specific ATS adapter.
 - If the plan is correct but the page remains blank or unselected, fix filling behavior in `platforms/<ats>.js`.
-- If a field is legal, consent, salary, background check, or otherwise ambiguous, keep it manual unless `answers.json` contains an explicit approved answer.
+- If a field needs an applicant-specific value, fill it only from an explicit approved source: profile data or `answers.json`. Do not infer it from nearby wording.
 
 Do not hardcode applicant data in source files. Profile-derived answers belong in `Specs/sravya_narayana_application_profile.md`; reusable manually approved answers belong in `answers.json`.
 
@@ -56,7 +56,7 @@ Do not hardcode applicant data in source files. Profile-derived answers belong i
 `lib/answerPlan.js` is the shared decision layer. Prefer broad, stable question patterns when they are genuinely reusable across employers, such as:
 
 - name, email, phone, location, resume, LinkedIn
-- work authorization and sponsorship
+- work authorization, sponsorship, demographics, and compensation when explicitly approved
 - previous employment by the company
 - relocation or hybrid-work comfort
 

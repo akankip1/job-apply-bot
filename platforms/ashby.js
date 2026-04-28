@@ -3,7 +3,7 @@ const greenhouse = require("./greenhouse");
 const { normalizeText, escapeRegExp } = require("../lib/text");
 
 function detect(page) {
-  return /jobs\.ashbyhq\.com/i.test(page.url());
+  return page.frames().some((frame) => /ashbyhq\.com/i.test(frame.url())) || /jobs\.ashbyhq\.com/i.test(page.url());
 }
 
 async function firstText(page, selectors) {
@@ -21,48 +21,77 @@ function fieldLocator(frame, decision) {
 
 async function extractAshbyButtonGroups(frame, existingCount) {
   return frame.evaluate((startIndex) => {
-    function buttonGroupLabel(text) {
-      const prefix = text.split(/\bYes\s+No\b/i)[0].trim();
-      const questionMark = prefix.indexOf("?");
-      return questionMark >= 0 ? prefix.slice(0, questionMark + 1).trim() : prefix;
+    function getGroupLabel(group) {
+      // Look for a label or heading that is a direct sibling or closely preceding.
+      const heading = group.querySelector("h1, h2, h3, h4, h5, h6, [class*='label'], [class*='title'], [class*='heading'], legend");
+      if (heading && heading.innerText.trim()) return heading.innerText.trim();
+      
+      const parent = group.parentElement;
+      if (parent) {
+        const parentHeading = parent.querySelector("[class*='label'], [class*='title'], [class*='heading'], legend");
+        if (parentHeading && parentHeading.innerText.trim()) return parentHeading.innerText.trim();
+      }
+
+      const text = (group.innerText || "").replace(/\s+/g, " ").trim();
+      const prefix = text.split(/\b(Yes|No)\b/i)[0].trim();
+      const questionMark = prefix.lastIndexOf("?");
+      if (questionMark >= 0) {
+        const lastNewline = prefix.lastIndexOf("\n", questionMark);
+        return prefix.slice(lastNewline + 1, questionMark + 1).trim();
+      }
+      return prefix.split("\n").pop().trim();
     }
 
     const fields = [];
     const seenLabels = new Set();
-    const groupCandidates = Array.from(document.querySelectorAll("div, fieldset"))
-      .filter((el) => {
-        const buttons = Array.from(el.querySelectorAll("button")).filter((button) => {
-          const text = (button.innerText || "").trim().toLowerCase();
-          return text === "yes" || text === "no";
-        });
-        return buttons.length === 2;
-      });
+    const allContainers = Array.from(document.querySelectorAll("div, fieldset, [role='radiogroup']"));
+    
+    // Deepest first to find specific groups.
+    const sortedContainers = allContainers.sort((a, b) => {
+      const depthA = document.evaluate("count(ancestor::*)", a, null, XPathResult.NUMBER_TYPE, null).numberValue;
+      const depthB = document.evaluate("count(ancestor::*)", b, null, XPathResult.NUMBER_TYPE, null).numberValue;
+      return depthB - depthA;
+    });
 
-    for (const group of groupCandidates) {
-      const text = (group.innerText || "").replace(/\s+/g, " ").trim();
-      if (/^Yes\s+No$/i.test(text)) continue;
-      const label = /\bYes\s+No\b/i.test(text) ? buttonGroupLabel(text) : "";
-      if (!label || seenLabels.has(label)) continue;
+    const claimedControls = new Set();
+
+    for (const group of sortedContainers) {
+      const controls = Array.from(group.querySelectorAll("button, input[type='radio']"));
+      if (controls.length < 2 || controls.length > 4) continue;
+      
+      const texts = controls.map(c => (c.innerText || c.labels?.[0]?.innerText || "").trim().toLowerCase());
+      const hasYes = texts.some(t => /^yes\b/.test(t));
+      const hasNo = texts.some(t => /^no\b/.test(t));
+      
+      if (!hasYes || !hasNo) continue;
+      if (controls.some(c => claimedControls.has(c))) continue;
+      controls.forEach(c => claimedControls.add(c));
+
+      const label = getGroupLabel(group);
+      if (!label || seenLabels.has(label) || label.length > 300) continue;
       seenLabels.add(label);
-      const id = group.getAttribute("data-testid") || group.id || `ashby_button_group_${fields.length}`;
+      
+      const isRadio = controls.every(c => c.tagName.toLowerCase() === 'input');
+      const id = group.getAttribute("data-testid") || group.id || `ashby_group_${fields.length}`;
+      
       fields.push({
         fieldId: id,
         frameUrl: location.href,
         index: startIndex + fields.length,
-        selector: group.id ? `[id="${group.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]` : null,
+        selector: group.id ? `[id="${group.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]` : (group.getAttribute("data-testid") ? `[data-testid="${group.getAttribute("data-testid")}"]` : null),
         id,
         name: "",
         label,
         normalizedLabel: label.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
         type: "radio",
-        tag: "button-group",
-        required: /\*/.test(text) || /willing to move/i.test(label),
+        tag: isRadio ? "radio-group" : "button-group",
+        required: group.innerText.includes("*") || /willing to move|authorized|sponsorship|relocate|disability|veteran|gender|race|ethnic/i.test(label),
         options: ["Yes", "No"],
         visible: true,
         disabled: false,
+        _childIndices: controls.map(c => Array.from(document.querySelectorAll("input:not([type='hidden']), textarea, select")).indexOf(c)).filter(i => i !== -1)
       });
     }
-
     return fields;
   }, existingCount);
 }
@@ -71,8 +100,10 @@ async function extract(page) {
   const fields = [];
   for (const frame of page.frames()) {
     const frameFields = await extractFieldsFromFrame(frame);
-    fields.push(...frameFields);
-    fields.push(...await extractAshbyButtonGroups(frame, fields.length));
+    const groups = await extractAshbyButtonGroups(frame, frameFields.length);
+    const childIndices = new Set(groups.flatMap(g => g._childIndices || []));
+    const filteredFrameFields = frameFields.filter(f => !childIndices.has(f.index));
+    fields.push(...filteredFrameFields, ...groups);
   }
 
   const normalized = fields.map((field) => {
@@ -98,31 +129,51 @@ async function clickAshbyButtonGroup(page, decision, log) {
   const wanted = String(decision.answer || "").trim();
   if (!wanted) return { filled: false, reason: decision.reason };
   const question = normalizeText(decision.label);
-  const answerRe = new RegExp(`^\\s*${escapeRegExp(wanted)}\\s*$`, "i");
+  
+  // Expanded matchers for Yes/No
+  const yesMatchers = [/^\s*yes\b/i, /i have a disability/i, /i am a veteran/i, /identify as transgender/i, /i identify as/i, /i have/i];
+  const noMatchers = [/^\s*no\b/i, /don't have a disability/i, /do not have a disability/i, /not a veteran/i, /do not identify/i, /don't identify/i, /prefer not to/i, /i do not/i, /i don't/i];
+  
+  const isWantedYes = /^(yes|true)$/i.test(wanted);
+  const matchers = isWantedYes ? yesMatchers : noMatchers;
+
+  const questionPrefix = decision.label.slice(0, 50);
 
   for (const frame of page.frames()) {
-    const groups = frame.locator("div, fieldset").filter({ hasText: new RegExp(escapeRegExp(decision.label), "i") });
+    const groups = frame.locator("div, fieldset, [role='radiogroup']").filter({ hasText: new RegExp(escapeRegExp(questionPrefix), "i") });
     const count = await groups.count().catch(() => 0);
     let best = null;
     for (let i = 0; i < count; i += 1) {
       const group = groups.nth(i);
       const text = normalizeText(await group.innerText({ timeout: 1000 }).catch(() => ""));
       if (!text.includes(question)) continue;
-      const options = await group.locator("button").evaluateAll((buttons) =>
-        buttons.map((button) => (button.innerText || "").trim()).filter(Boolean)
-      ).catch(() => []);
-      const yesNoOptions = options.filter((option) => /^(yes|no)$/i.test(option));
-      if (yesNoOptions.length !== 2) continue;
-
       if (!best || text.length < best.textLength) best = { group, textLength: text.length };
     }
 
     if (best) {
-      const button = best.group.locator("button").filter({ hasText: answerRe }).first();
-      if (await button.isVisible().catch(() => false)) {
-        await button.click({ timeout: 3000 });
-        log("ashby_button_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
-        return { filled: true };
+      const controls = best.group.locator("button, label, input[type='radio']");
+      const controlCount = await controls.count().catch(() => 0);
+      
+      for (const matcher of matchers) {
+        for (let i = 0; i < controlCount; i++) {
+          const control = controls.nth(i);
+          const meta = await control.evaluate((el) => {
+            return {
+              text: (el.innerText || "").trim(),
+              labelText: (el.labels && el.labels[0] ? el.labels[0].innerText : "").trim(),
+              value: el.value || ""
+            };
+          }).catch(() => ({ text: "", labelText: "", value: "" }));
+          
+          const combinedText = `${meta.text} ${meta.labelText}`.trim();
+          if (matcher.test(combinedText)) {
+            if (await control.isVisible().catch(() => false)) {
+              await control.click({ timeout: 3000 });
+              log("ashby_group_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted, matchedText: combinedText });
+              return { filled: true };
+            }
+          }
+        }
       }
     }
   }

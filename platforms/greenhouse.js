@@ -20,7 +20,7 @@ const LOCATION_OPTION_SELECTORS = [
   "[class*='autocomplete'] li",
   "li",
 ];
-const COMBOBOX_LABEL_RE = /country|location|eligible|authorized|sponsor|hybrid|relocat|previously employed|ever been employed|gender|ethnicity|veteran|school|degree|discipline|month/;
+const COMBOBOX_LABEL_RE = /country|location|eligible|authorized|verification|identity|18 years|sponsor|visa|hybrid|relocat|onsite|office|previously employed|ever been employed|gender|ethnicity|race|hispanic|latino|veteran|disability|school|degree|discipline|month|how did you hear|privacy policy|acknowledge|interviewed with|export license|ear|contractual obligations|fugitive|alien|controlled substance|mental defective|mental institution|dishonorable|renounced/;
 
 function isGreenhouseFrame(frame) {
   return /greenhouse\.io|greenhouse\.com|job_app|gh_jid/i.test(frame.url());
@@ -83,6 +83,35 @@ function shouldVerifyText(decision) {
   return ["email", "text", "textarea", "tel", "input"].includes(decision.type) && decision.safeToFill && decision.answer;
 }
 
+function requiresOptionSelection(decision, label) {
+  return /how did you hear|privacy policy|acknowledge|interviewed with|authorized|eligible|verification|identity|18 years|sponsor|visa|gender|ethnicity|race|hispanic|latino|veteran|disability|export license|ear|contractual obligations|fugitive|alien|controlled substance|mental defective|mental institution|dishonorable|renounced|onsite|office/.test(label) ||
+    [
+      "howDidYouHear",
+      "recruitmentPrivacyPolicyAcknowledgement",
+      "recentlyInterviewedWithCompany",
+      "workAuthorization",
+      "workAuthorizationAnyEmployer",
+      "identityWorkAuthorizationVerification",
+      "age18OrOlder",
+      "deemedExportLicenseEligible",
+      "conflictingObligations",
+      "fugitiveFromJustice",
+      "unlawfullyInUnitedStates",
+      "unlawfulControlledSubstanceUser",
+      "adjudicatedMentalDefectiveOrCommitted",
+      "dishonorableMilitaryDischarge",
+      "renouncedUsCitizenship",
+      "onsiteSeattleFourDays",
+      "sponsorship",
+      "gender",
+      "ethnicity",
+      "hispanicLatinx",
+      "veteran",
+      "disability",
+      "lgbtq",
+    ].includes(decision.key);
+}
+
 async function verifyTextValue(frame, locator, decision, log) {
   if (!shouldVerifyText(decision)) return { filled: true };
 
@@ -129,11 +158,24 @@ async function selectOption(locator, answer) {
 
 async function clickChoice(frame, decision) {
   const label = decision.label || "";
-  const answer = decision.answer || "";
+  const answer = String(decision.answer || "").trim();
   const field = fieldLocator(frame, decision);
-  if (decision.type === "checkbox" && /^(yes|true|checked)$/i.test(String(answer).trim())) {
-    await field.check({ timeout: 3000 });
-    return true;
+  
+  if (decision.type === "checkbox") {
+    const isYes = /^(yes|true|checked)$/i.test(answer);
+    const isNo = /^(no|false|unchecked)$/i.test(answer);
+
+    if (isYes) {
+      if (!(await field.isChecked().catch(() => false))) {
+        await field.click({ timeout: 3000, force: true });
+      }
+      return true;
+    } else if (isNo) {
+      if (await field.isChecked().catch(() => false)) {
+        await field.click({ timeout: 3000, force: true });
+      }
+      return true;
+    }
   }
 
   const parent = field.locator("xpath=ancestor::*[self::fieldset or @role='radiogroup' or @role='group' or self::div][1]");
@@ -141,11 +183,6 @@ async function clickChoice(frame, decision) {
   const choices = parent.getByText(exactText);
   if ((await choices.count().catch(() => 0)) > 0) {
     await choices.first().click({ timeout: 3000 });
-    return true;
-  }
-  const ownText = normalizeText(`${label} ${answer}`);
-  if (ownText.includes(normalizeText(answer))) {
-    await field.check({ timeout: 3000 });
     return true;
   }
   return false;
@@ -172,12 +209,18 @@ async function fillDecision(page, decision, log) {
     }
 
     const label = normalizeText(decision.label);
+    const isAshbyFrame = /ashbyhq\.com/i.test(decision.frameUrl || "");
     const isComboboxCandidate =
       decision.type === "text" &&
       (COMBOBOX_LABEL_RE.test(label) || /^question_/.test(decision.fieldId) || /^\d+$/.test(decision.fieldId));
 
-    if (isComboboxCandidate && await fillComboboxLikeField(frame, locator, decision.answer, log, decision)) {
-      return { filled: true };
+    if (isComboboxCandidate && !(isAshbyFrame && /how did you hear/.test(label))) {
+      if (await fillComboboxLikeField(frame, locator, decision.answer, log, decision)) {
+        return { filled: true };
+      }
+      if (requiresOptionSelection(decision, label)) {
+        return { filled: false, reason: "option_not_found" };
+      }
     }
 
     await locator.fill(String(decision.answer), { timeout: 3000 });
@@ -192,6 +235,7 @@ async function fillComboboxLikeField(frame, locator, answer, log, decision) {
   // Greenhouse frequently renders selects as text inputs backed by a popup.
   // Treat planned answers as candidates, then select an actual visible option
   // when one exists. Plain text acceptance is only a fallback.
+  const mustSelectOption = requiresOptionSelection(decision, normalizeText(decision.label));
   if (decision.key === "locationCity") {
     const selected = await fillLocationAutocomplete(frame, locator, answer, log, decision);
     if (selected) return true;
@@ -239,7 +283,7 @@ async function fillComboboxLikeField(frame, locator, answer, log, decision) {
     const normalizedWanted = normalizeText(wanted);
     const accepted = !!normalizedValue && (normalizedValue.includes(normalizedWanted) || normalizedWanted.includes(normalizedValue));
     log("dropdown_enter_attempted", { fieldId: decision.fieldId, label: decision.label, answer: wanted, originalAnswer: answer, value, accepted });
-    if (accepted) return true;
+    if (accepted && !mustSelectOption) return true;
   }
 
   return false;
@@ -326,6 +370,16 @@ function optionCandidates(answer, decision) {
     }
   }
 
+  if (key === "howDidYouHear" || /how did you hear/.test(label)) {
+    if (/career|job|website|site/i.test(original)) candidates.push("Career Site");
+  }
+
+  if (key === "workAuthorization" || /(authorized|eligible).*work/.test(label)) {
+    if (/^yes$/i.test(original)) {
+      candidates.push("I am authorized to work for any employer in the country outlined in this role");
+    }
+  }
+
   if (key === "locationCity" || /location city|\bcity\b/.test(label)) {
     if (/seattle/i.test(original)) candidates.push("Seattle", "Seattle, WA", "Seattle, Washington");
   }
@@ -344,6 +398,25 @@ function optionCandidates(answer, decision) {
     if (/electronics.*communication|communication.*electronics/i.test(original)) {
       candidates.push("Electronics", "Electronics and Communication Engineering", "Computer Engineering");
     }
+  }
+
+  if (key === "recruitmentPrivacyPolicyAcknowledgement" || /privacy policy|acknowledge/.test(label)) {
+    candidates.push(
+      "Acknowledge/Confirm",
+      "I acknowledge",
+      "Yes, I acknowledge",
+      "I acknowledge that I have read and understand",
+      "I have read and understand",
+      "Yes"
+    );
+  }
+
+  if (key === "prohibitedPossessorQuestionnaireAcknowledgement" || /prohibited possessor questionnaire|acknowledgment of receipt and review/.test(label)) {
+    candidates.push("Acknowledge", "I acknowledge", "Yes");
+  }
+
+  if (key === "disability" || /disability/.test(label)) {
+    if (/^no$/i.test(original)) candidates.push("No, I do not have a disability and have not had one in the past");
   }
 
   return [...new Set(candidates.filter(Boolean))];
