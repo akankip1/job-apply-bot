@@ -20,14 +20,27 @@ function fieldLocator(frame, decision) {
 }
 
 function getStableKey(decision) {
-  // Groups are notoriously unstable in ID but stable in Label
-  if (String(decision.fieldId).startsWith("ashby_group_")) {
-    return `group:${normalizeText(decision.label)}`;
+  const label = normalizeText(decision.label || "");
+  
+  // Requirement 1: Targeted resume categories
+  const isAutofill = /autofill|parse|parsing/.test(label);
+  const isResume = /resume|cv/.test(label);
+
+  if (isAutofill && isResume) {
+    return "category:resume_autofill_upload";
   }
-  // Locations can also drift IDs
-  if (decision.label === "Where are you currently based?") {
-    return "field:location";
+  if (isResume) {
+    return "category:resume_attachment_upload";
   }
+  
+  if (label.includes("currently based") || label.includes("typing")) {
+    return "category:location";
+  }
+
+  if (label) {
+    return `label:${label}`;
+  }
+  
   return `id:${decision.fieldId}`;
 }
 
@@ -192,7 +205,6 @@ async function clickAshbyButtonGroup(page, decision, log) {
           
           const combinedText = `${meta.text} ${meta.labelText} ${meta.value}`.trim();
           if (matcher.test(combinedText)) {
-            // IF ALREADY SELECTED, DO NOT CLICK (prevents toggling)
             if (meta.isChecked) {
               log("ashby_group_already_selected_skipped", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
               return { filled: true };
@@ -241,7 +253,6 @@ async function fillLocationCombobox(page, decision, log) {
 
   const locator = await getAshbyLocationLocator(frame, decision);
 
-  // Check if already filled
   const current = await locator.inputValue().catch(() => "");
   if (current && current.length > 3) {
       log("ashby_location_already_filled_skipped", { fieldId: decision.fieldId, value: current });
@@ -257,12 +268,12 @@ async function fillLocationCombobox(page, decision, log) {
   await frame.waitForTimeout(200);
 
   await locator.pressSequentially(city, { delay: 150 });
-  await frame.waitForTimeout(1500); // Wait for API
+  await frame.waitForTimeout(1500);
 
   await locator.press("ArrowDown");
   await frame.waitForTimeout(200);
   await locator.press("Enter");
-  await frame.waitForTimeout(1000); // Wait for form state update
+  await frame.waitForTimeout(1000);
 
   const finalValue = await locator.inputValue({ timeout: 1000 }).catch(() => "");
   log("ashby_location_selected_via_keys", { fieldId: decision.fieldId, typed: city, finalValue });
@@ -311,7 +322,6 @@ async function fillTextAndVerify(page, decision, log) {
   return { filled: false, reason: "value_not_persisted" };
 }
 
-// Simple singleton to track cross-pass state since adapters are recreated or called per pass
 const globallyFilledKeys = new Set();
 
 async function fill(page, plan, log) {
@@ -332,11 +342,15 @@ async function fill(page, plan, log) {
     }
   }
 
-  // Idempotency: skip if already handled in this run/page session
   const fillIfNew = async (decision, fillFn) => {
       const key = getStableKey(decision);
       if (globallyFilledKeys.has(key)) {
-          log("ashby_field_already_filled_skipped", { fieldId: decision.fieldId, key, label: decision.label });
+          // Requirement 4: Targeted log for skipped resume upload
+          if (key.startsWith("category:resume")) {
+              log("ashby_resume_upload_already_done_skipped", { fieldId: decision.fieldId, label: decision.label, category: key });
+          } else {
+              log("ashby_field_already_filled_skipped", { fieldId: decision.fieldId, key, label: decision.label });
+          }
           return { filled: true, skipped: true };
       }
       const res = await fillFn();
@@ -351,10 +365,21 @@ async function fill(page, plan, log) {
     await page.waitForTimeout(1000);
   }
 
-  const remainingPlan = {
-    ...plan,
-    decisions: plan.decisions.filter((decision) => !specialDecisions.has(decision.fieldId)),
-  };
+  // Filter remaining plan to skip already filled categories before greenhouse
+  const filteredRemainingDecisions = plan.decisions.filter((decision) => {
+      if (specialDecisions.has(decision.fieldId)) return false;
+      const key = getStableKey(decision);
+      if (globallyFilledKeys.has(key)) {
+          if (key.startsWith("category:resume")) {
+              log("ashby_resume_upload_already_done_skipped", { fieldId: decision.fieldId, label: decision.label, category: key });
+          }
+          results.push({ fieldId: decision.fieldId, filled: true, skipped: true });
+          return false;
+      }
+      return true;
+  });
+
+  const remainingPlan = { ...plan, decisions: filteredRemainingDecisions };
   
   // 2. Greenhouse-handled (Resume etc)
   const ghResults = await greenhouse.fill(page, remainingPlan, log);
