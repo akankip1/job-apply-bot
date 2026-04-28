@@ -19,6 +19,18 @@ function fieldLocator(frame, decision) {
   return frame.locator("input:not([type='hidden']), textarea, select").nth(decision.index);
 }
 
+function getStableKey(decision) {
+  // Groups are notoriously unstable in ID but stable in Label
+  if (String(decision.fieldId).startsWith("ashby_group_")) {
+    return `group:${normalizeText(decision.label)}`;
+  }
+  // Locations can also drift IDs
+  if (decision.label === "Where are you currently based?") {
+    return "field:location";
+  }
+  return `id:${decision.fieldId}`;
+}
+
 async function extractAshbyButtonGroups(frame, existingCount) {
   return frame.evaluate((startIndex) => {
     function getGroupLabel(group) {
@@ -139,36 +151,11 @@ async function clickAshbyButtonGroup(page, decision, log) {
   const question = normalizeText(decision.label);
 
   for (const frame of page.frames()) {
-    if (decision.radioName) {
-      const inputs = frame.locator(`input[type="radio"][name="${decision.radioName}"]`);
-      const count = await inputs.count().catch(() => 0);
-      if (count > 0) {
-        for (const matcher of matchers) {
-          for (let i = 0; i < count; i++) {
-            const input = inputs.nth(i);
-            const meta = await input.evaluate(el => ({
-              value: el.value || "",
-              labelText: (el.labels && el.labels[0] ? el.labels[0].innerText : "").trim()
-            })).catch(() => ({ value: "", labelText: "" }));
-            
-            if (matcher.test(meta.value) || matcher.test(meta.labelText)) {
-              if (await input.isVisible().catch(() => false)) {
-                await input.click({ force: true, timeout: 3000 });
-                log("ashby_radio_selected_by_name", { fieldId: decision.fieldId, answer: wanted, name: decision.radioName });
-                return { filled: true };
-              }
-            }
-          }
-        }
-      }
-    }
-
     const questionPrefix = decision.label.slice(0, 50);
     const allDivs = frame.locator("div, fieldset, [role='radiogroup'], [role='group']");
     const divCount = await allDivs.count().catch(() => 0);
     
     let best = null;
-    log("ashby_searching_groups", { fieldId: decision.label.slice(0, 30), divCount });
     for (let i = 0; i < divCount; i += 1) {
       const group = allDivs.nth(i);
       const rawText = await group.innerText({ timeout: 500 }).catch(() => "");
@@ -187,7 +174,6 @@ async function clickAshbyButtonGroup(page, decision, log) {
     }
 
     if (best) {
-      log("ashby_group_found", { fieldId: decision.fieldId, text: best.text });
       const controls = best.group.locator("button, label, [role='radio'], [role='button'], input[type='radio']");
       const controlCount = await controls.count().catch(() => 0);
       
@@ -195,50 +181,27 @@ async function clickAshbyButtonGroup(page, decision, log) {
         for (let i = 0; i < controlCount; i++) {
           const control = controls.nth(i);
           const meta = await control.evaluate((el) => {
+            const isChecked = el.checked || el.getAttribute("aria-checked") === "true" || el.classList.contains("selected") || el.getAttribute("data-state") === "on";
             return {
               text: (el.innerText || "").trim(),
               labelText: (el.labels && el.labels[0] ? el.labels[0].innerText : "").trim(),
               value: el.value || "",
-              tagName: el.tagName.toLowerCase(),
-              role: el.getAttribute("role") || ""
+              isChecked
             };
-          }).catch(() => ({ text: "", labelText: "", value: "", tagName: "", role: "" }));
+          }).catch(() => ({ text: "", labelText: "", value: "", isChecked: false }));
           
           const combinedText = `${meta.text} ${meta.labelText} ${meta.value}`.trim();
           if (matcher.test(combinedText)) {
-            await control.click({ force: true, timeout: 3000 }).catch(() => {});
-
-            const isButton = meta.tagName === "button" || meta.role === "button";
-            const confirmed = isButton || await best.group.locator("input[type='radio'], [aria-checked='true']").evaluateAll(els =>
-              els.some(el => el.checked || el.getAttribute("aria-checked") === "true")
-            ).catch(() => false);
-
-            if (confirmed) {
-              log("ashby_group_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted, matchedText: combinedText });
+            // IF ALREADY SELECTED, DO NOT CLICK (prevents toggling)
+            if (meta.isChecked) {
+              log("ashby_group_already_selected_skipped", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
               return { filled: true };
             }
+
+            await control.click({ force: true, timeout: 3000 }).catch(() => {});
+            log("ashby_group_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
+            return { filled: true };
           }
-        }
-      }
-    } else {
-      const possibleControls = frame.locator("button, label, input[type='radio']");
-      const possibleCount = await possibleControls.count().catch(() => 0);
-      for (let i = 0; i < possibleCount; i++) {
-        const control = possibleControls.nth(i);
-        const val = await control.evaluate(el => el.innerText || el.labels?.[0]?.innerText || "").catch(() => "");
-        if (matchers.some(m => m.test(val))) {
-            const isNear = await control.evaluate((el, q) => {
-                const body = document.body.innerText.toLowerCase();
-                const idx = body.indexOf(q.toLowerCase());
-                if (idx === -1) return false;
-                return true; 
-            }, questionPrefix).catch(() => false);
-            
-            if (isNear && await control.isVisible().catch(() => false)) {
-                await control.click({ timeout: 3000 });
-                log("ashby_group_option_selected_fallback", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
-                return { filled: true };
-            }
         }
       }
     }
@@ -276,8 +239,14 @@ async function fillLocationCombobox(page, decision, log) {
     page.frames().find((item) => /ashbyhq\.com/i.test(item.url())) ||
     page.mainFrame();
 
-  const cityRe = new RegExp(escapeRegExp(city), "i");
   const locator = await getAshbyLocationLocator(frame, decision);
+
+  // Check if already filled
+  const current = await locator.inputValue().catch(() => "");
+  if (current && current.length > 3) {
+      log("ashby_location_already_filled_skipped", { fieldId: decision.fieldId, value: current });
+      return { filled: true };
+  }
 
   await locator.scrollIntoViewIfNeeded().catch(() => {});
   await locator.click({ force: true, timeout: 3000 });
@@ -287,56 +256,18 @@ async function fillLocationCombobox(page, decision, log) {
   await locator.fill("", { timeout: 1000 }).catch(() => {});
   await frame.waitForTimeout(200);
 
-  // Type full city name at a human pace
   await locator.pressSequentially(city, { delay: 150 });
   await frame.waitForTimeout(1500); // Wait for API
 
-  const listboxSelectors = [
-    frame.locator("[role='listbox']").first(),
-    page.locator("[role='listbox']").first(),
-    frame.locator("[class*='listbox']").first(),
-    page.locator("[class*='listbox']").first(),
-  ];
+  await locator.press("ArrowDown");
+  await frame.waitForTimeout(200);
+  await locator.press("Enter");
+  await frame.waitForTimeout(1000); // Wait for form state update
 
-  let listbox = null;
-  let appeared = false;
-
-  for (const selector of listboxSelectors) {
-    appeared = await selector.waitFor({ state: "visible", timeout: 3000 }).then(() => true).catch(() => false);
-    if (appeared) {
-      listbox = selector;
-      break;
-    }
-  }
-
-  if (!appeared) {
-    log("ashby_location_debug", { fieldId: decision.fieldId, city, reason: "listbox_never_appeared" });
-    return { filled: false, reason: "location_listbox_not_found" };
-  }
-
-  // Filter for the best match - prefer the first one but ensure it's visible
-  const options = listbox.locator("[role='option'], li, div[class*='option'], button");
-  const count = await options.count().catch(() => 0);
+  const finalValue = await locator.inputValue({ timeout: 1000 }).catch(() => "");
+  log("ashby_location_selected_via_keys", { fieldId: decision.fieldId, typed: city, finalValue });
   
-  let selected = false;
-  for (let i = 0; i < Math.min(count, 3); i++) {
-    const opt = options.nth(i);
-    const text = await opt.innerText().catch(() => "");
-    if (cityRe.test(text)) {
-      await opt.click({ force: true, timeout: 3000 });
-      log("ashby_location_selected", { fieldId: decision.fieldId, typed: city, optionText: text, index: i });
-      selected = true;
-      break;
-    }
-  }
-
-  if (selected) {
-    await frame.waitForTimeout(1000); // Wait for potential state reset
-    const finalValue = await locator.inputValue({ timeout: 1000 }).catch(() => "");
-    return { filled: true, finalValue };
-  }
-
-  return { filled: false, reason: "matching_location_not_found" };
+  return { filled: true, finalValue };
 }
 
 function isTextDecision(decision) {
@@ -380,6 +311,9 @@ async function fillTextAndVerify(page, decision, log) {
   return { filled: false, reason: "value_not_persisted" };
 }
 
+// Simple singleton to track cross-pass state since adapters are recreated or called per pass
+const globallyFilledKeys = new Set();
+
 async function fill(page, plan, log) {
   const specialDecisions = new Set();
   const results = [];
@@ -398,39 +332,49 @@ async function fill(page, plan, log) {
     }
   }
 
+  // Idempotency: skip if already handled in this run/page session
+  const fillIfNew = async (decision, fillFn) => {
+      const key = getStableKey(decision);
+      if (globallyFilledKeys.has(key)) {
+          log("ashby_field_already_filled_skipped", { fieldId: decision.fieldId, key, label: decision.label });
+          return { filled: true, skipped: true };
+      }
+      const res = await fillFn();
+      if (res.filled) globallyFilledKeys.add(key);
+      return res;
+  };
+
+  // 1. Location FIRST
+  const locationDecision = plan.decisions.find(d => d.label === "Where are you currently based?" && d.safeToFill);
+  if (locationDecision) {
+    results.push({ fieldId: locationDecision.fieldId, ...await fillIfNew(locationDecision, () => fillLocationCombobox(page, locationDecision, log)) });
+    await page.waitForTimeout(1000);
+  }
+
   const remainingPlan = {
     ...plan,
     decisions: plan.decisions.filter((decision) => !specialDecisions.has(decision.fieldId)),
   };
   
-  // 1. Fill Greenhouse-handled fields
-  results.push(...await greenhouse.fill(page, remainingPlan, log));
-  await page.waitForTimeout(500);
+  // 2. Greenhouse-handled (Resume etc)
+  const ghResults = await greenhouse.fill(page, remainingPlan, log);
+  for (const res of ghResults) {
+      if (res.filled) {
+          const decision = remainingPlan.decisions.find(d => d.fieldId === res.fieldId);
+          if (decision) globallyFilledKeys.add(getStableKey(decision));
+      }
+  }
+  results.push(...ghResults);
 
-  // 2. Fill standard text fields
+  // 3. Text fields verification
   for (const decision of remainingPlan.decisions.filter(isTextDecision)) {
-    results.push({ fieldId: decision.fieldId, ...await fillTextAndVerify(page, decision, log) });
+    results.push({ fieldId: decision.fieldId, ...await fillIfNew(decision, () => fillTextAndVerify(page, decision, log)) });
   }
 
-  // 3. Fill Button Groups (First Pass)
+  // 4. Button Groups
   const groupDecisions = plan.decisions.filter(d => specialDecisions.has(d.fieldId) && d.label !== "Where are you currently based?");
   for (const decision of groupDecisions) {
-    results.push({ fieldId: decision.fieldId, ...await clickAshbyButtonGroup(page, decision, log) });
-  }
-
-  // 4. Fill Location (LAST)
-  const locationDecision = plan.decisions.find(d => d.label === "Where are you currently based?" && d.safeToFill);
-  if (locationDecision) {
-    results.push({ fieldId: locationDecision.fieldId, ...await fillLocationCombobox(page, locationDecision, log) });
-    
-    // 5. CLEANUP PASS: Re-verify critical button groups that Ashby often resets
-    await page.waitForTimeout(1000);
-    log("ashby_cleanup_pass", { message: "Re-verifying critical button groups after location fill" });
-    for (const decision of groupDecisions) {
-      if (/european union|visa sponsorship|relocate/i.test(decision.label)) {
-        await clickAshbyButtonGroup(page, decision, log);
-      }
-    }
+    results.push({ fieldId: decision.fieldId, ...await fillIfNew(decision, () => clickAshbyButtonGroup(page, decision, log)) });
   }
 
   return results;

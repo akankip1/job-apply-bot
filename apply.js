@@ -100,10 +100,13 @@ function fillFailuresAsBlockers(plan, fillResults) {
 }
 
 function fieldIdentity(field) {
-  return [field.fieldId, field.selector, field.id, field.name, normalizeText(field.label)].filter(Boolean).join("|");
+  // Prefer normalized label as the primary stable identity for dynamic forms
+  const labelId = field.label ? `label:${normalizeText(field.label)}` : null;
+  const technicalId = [field.fieldId, field.selector, field.id, field.name].filter(Boolean).join("|");
+  return labelId || technicalId;
 }
 
-async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, step) {
+async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, step, fillHistory = new Set()) {
   const schema = await adapter.extract(page);
   const schemaPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-form-schema.json`);
   writeJson(schemaPath, schema);
@@ -116,6 +119,17 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
   });
 
   const plan = await createAnswerPlan(schema, profile, answers);
+  
+  // FILTER PLAN: Do not re-fill fields that have already been filled with the same answer
+  plan.decisions = plan.decisions.filter(decision => {
+    const id = fieldIdentity(decision);
+    const historyKey = `${id}=${decision.answer}`;
+    if (fillHistory.has(historyKey)) {
+      return false;
+    }
+    return true;
+  });
+
   const planPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-answer-plan.json`);
   writeJson(planPath, plan);
   log("answer_plan_created", {
@@ -129,6 +143,18 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
   const resumeBlocker = validateResume(plan);
   const manualBlockers = validatePlan(plan);
   const fillResults = await adapter.fill(page, plan, log);
+  
+  // Track successful fills in history
+  for (const res of fillResults) {
+    if (res.filled) {
+      const decision = plan.decisions.find(d => d.fieldId === res.fieldId);
+      if (decision) {
+        const id = fieldIdentity(decision);
+        fillHistory.add(`${id}=${decision.answer}`);
+      }
+    }
+  }
+
   const fillBlockers = fillFailuresAsBlockers(plan, fillResults);
   const blockers = [...manualBlockers, ...(resumeBlocker ? [resumeBlocker] : []), ...fillBlockers];
 
@@ -151,6 +177,15 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
       });
 
       const dynamicPlan = await createAnswerPlan(dynamicOnlySchema, profile, answers);
+      
+      // Filter dynamic plan too
+      dynamicPlan.decisions = dynamicPlan.decisions.filter(decision => {
+        const id = fieldIdentity(decision);
+        const historyKey = `${id}=${decision.answer}`;
+        if (fillHistory.has(historyKey)) return false;
+        return true;
+      });
+
       const dynamicPlanPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-dynamic-answer-plan.json`);
       writeJson(dynamicPlanPath, dynamicPlan);
       log("dynamic_answer_plan_created", {
@@ -162,6 +197,17 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
       });
 
       const dynamicFillResults = await adapter.fill(page, dynamicPlan, log);
+      
+      for (const res of dynamicFillResults) {
+        if (res.filled) {
+          const decision = dynamicPlan.decisions.find(d => d.fieldId === res.fieldId);
+          if (decision) {
+            const id = fieldIdentity(decision);
+            fillHistory.add(`${id}=${decision.answer}`);
+          }
+        }
+      }
+      
       blockers.push(...validatePlan(dynamicPlan), ...fillFailuresAsBlockers(dynamicPlan, dynamicFillResults));
     }
   }
@@ -178,6 +224,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
 async function processJob(context, url, profile, answers, jobIndex) {
   const page = await context.newPage();
   const jobState = { blockers: [], status: FINAL_STATUS.DRY_RUN };
+  const fillHistory = new Set(); // Track all successful fills for this job
   log("job_started", { jobIndex, url });
 
   try {
@@ -197,7 +244,7 @@ async function processJob(context, url, profile, answers, jobIndex) {
 
       const adapter = detectAdapter(page);
       log("adapter_selected", { jobIndex, step, adapter: adapter.name });
-      const result = await extractPlanAndFill(page, adapter, profile, answers, jobIndex, step);
+      const result = await extractPlanAndFill(page, adapter, profile, answers, jobIndex, step, fillHistory);
       await saveScreenshot(page, jobIndex, `step-${step}-filled`);
 
       if (result.blockers.length) {
