@@ -132,25 +132,41 @@ async function clickAshbyButtonGroup(page, decision, log) {
   
   // Expanded matchers for Yes/No
   const yesMatchers = [/^\s*yes\b/i, /i have a disability/i, /i am a veteran/i, /identify as transgender/i, /i identify as/i, /i have/i];
-  const noMatchers = [/^\s*no\b/i, /don't have a disability/i, /do not have a disability/i, /not a veteran/i, /do not identify/i, /don't identify/i, /prefer not to/i, /i do not/i, /i don't/i];
-  
+  const noMatchers = [/^\s*no\b/i, /don't have a disability/i, /do not have a disability/i, /not a veteran/i, /do not identify/i, /don't identify/i, /prefer not to/i, /i do not/i, /i don't/i, /i do not have a disability/i];
+
   const isWantedYes = /^(yes|true)$/i.test(wanted);
   const matchers = isWantedYes ? yesMatchers : noMatchers;
 
   const questionPrefix = decision.label.slice(0, 50);
 
   for (const frame of page.frames()) {
-    const groups = frame.locator("div, fieldset, [role='radiogroup']").filter({ hasText: new RegExp(escapeRegExp(questionPrefix), "i") });
-    const count = await groups.count().catch(() => 0);
+    // Ashby often uses fieldsets with legends or divs with labels.
+    const allDivs = frame.locator("div, fieldset, [role='radiogroup'], [role='group']");
+    const divCount = await allDivs.count().catch(() => 0);
+    
     let best = null;
-    for (let i = 0; i < count; i += 1) {
-      const group = groups.nth(i);
-      const text = normalizeText(await group.innerText({ timeout: 1000 }).catch(() => ""));
-      if (!text.includes(question)) continue;
-      if (!best || text.length < best.textLength) best = { group, textLength: text.length };
+    log("ashby_searching_groups", { fieldId: decision.label.slice(0, 30), divCount });
+    for (let i = 0; i < divCount; i += 1) {
+      const group = allDivs.nth(i);
+      const rawText = await group.innerText({ timeout: 500 }).catch(() => "");
+      if (!rawText) continue;
+      
+      const text = normalizeText(rawText);
+      // Fuzzy match: either it includes the full question, a high-confidence match on the prefix, or common keywords for the specific field
+      const isMatch = text.includes(question) || 
+                      text.includes(normalizeText(questionPrefix)) ||
+                      (/disab/i.test(decision.label) && /disab/i.test(text));
+
+      if (isMatch) {
+        if (!best || rawText.length < best.rawLength) {
+          best = { group, rawLength: rawText.length, text: text.slice(0, 50) };
+        }
+      }
     }
 
     if (best) {
+      log("ashby_group_found", { fieldId: decision.fieldId, text: best.text });
+      // If it's a fieldset, the legend might be separate. If we found a container that contains buttons, we're good.
       const controls = best.group.locator("button, label, input[type='radio']");
       const controlCount = await controls.count().catch(() => 0);
       
@@ -161,11 +177,13 @@ async function clickAshbyButtonGroup(page, decision, log) {
             return {
               text: (el.innerText || "").trim(),
               labelText: (el.labels && el.labels[0] ? el.labels[0].innerText : "").trim(),
-              value: el.value || ""
+              value: el.value || "",
+              tagName: el.tagName.toLowerCase(),
+              type: el.type || ""
             };
-          }).catch(() => ({ text: "", labelText: "", value: "" }));
+          }).catch(() => ({ text: "", labelText: "", value: "", tagName: "", type: "" }));
           
-          const combinedText = `${meta.text} ${meta.labelText}`.trim();
+          const combinedText = `${meta.text} ${meta.labelText} ${meta.tagName === "input" && meta.type === "radio" ? meta.value : ""}`.trim();
           if (matcher.test(combinedText)) {
             if (await control.isVisible().catch(() => false)) {
               await control.click({ timeout: 3000 });
@@ -173,6 +191,30 @@ async function clickAshbyButtonGroup(page, decision, log) {
               return { filled: true };
             }
           }
+        }
+      }
+    } else {
+      // Fallback: search for buttons/inputs globally in this frame if we couldn't find a clean group
+      const possibleControls = frame.locator("button, input[type='radio']");
+      const possibleCount = await possibleControls.count().catch(() => 0);
+      for (let i = 0; i < possibleCount; i++) {
+        const control = possibleControls.nth(i);
+        const val = await control.evaluate(el => el.value || el.innerText || "").catch(() => "");
+        if (isWantedYes && /^\s*yes\b/i.test(val) || !isWantedYes && /^\s*no\b/i.test(val)) {
+            // Check if this button is near the question text
+            const isNear = await control.evaluate((el, q) => {
+                const body = document.body.innerText.toLowerCase();
+                const idx = body.indexOf(q.toLowerCase());
+                if (idx === -1) return false;
+                // This is a very rough heuristic
+                return true; 
+            }, questionPrefix).catch(() => false);
+            
+            if (isNear && await control.isVisible().catch(() => false)) {
+                await control.click({ timeout: 3000 });
+                log("ashby_group_option_selected_fallback", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
+                return { filled: true };
+            }
         }
       }
     }

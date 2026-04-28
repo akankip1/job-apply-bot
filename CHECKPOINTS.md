@@ -1,5 +1,42 @@
 # Checkpoints
 
+## 2026-04-28 (latest session)
+
+### Bug Fixed: Disability Question Mapped to `educationDiscipline`
+
+- **Root Cause:** Line 113 of `lib/answerPlan.js` had the regex `/\bmajor\b/` to match education major fields. The full disability question label contains "major life activities", so `/\bmajor\b/` matched it first — before the `/disab/` check on line 268 could fire. The field was mapped to `educationDiscipline` with answer "Computer Science". Since "Computer Science" is not yes/no, `clickAshbyButtonGroup` was never called at all; `greenhouse.fill()` handled it instead and logged `choice_not_found`.
+- **Fix:** Added `&& !/disab/.test(label)` to the `educationDiscipline` condition on line 113. Disability labels now fall through to the correct `/disab/` rule.
+- **Confirmed:** This same wrong mapping was present in all prior runs including `2026-04-28T06-40-54-782Z`. `clickAshbyButtonGroup` was never called for the disability field in any session — the bug predates the Ashby work.
+- **Verification needed:** Run a fresh dry run and confirm `ashby_group_1` now gets `answer: "No"` and `ashby_group_option_selected` fires for it.
+
+### Architecture Assessment
+
+Documented in `Specs/FIX.md`. Key findings:
+
+- `classifyField` in `lib/answerPlan.js` is a 25+ condition ordered if-else chain. Order is load-bearing but invisible — the disability bug is a direct consequence. Adding rules will keep producing conflicts.
+- Extraction and fill are decoupled: `extractAshbyButtonGroups` correctly identifies groups, but `selector: null` for most of them forces `clickAshbyButtonGroup` to re-scan all divs independently at fill time. "Group not found" failures come from this gap.
+- No test coverage on the decision layer. All bugs require a full live dry run to surface.
+
+### Recommended next steps (from `Specs/FIX.md`)
+
+1. **Short term (~30 min):** Add `scripts/test-answer-plan.js` — runs `createAnswerPlan` against a saved schema JSON and asserts field→answer mappings. Catches mapping bugs without a browser.
+2. **Medium term (2–3 hrs):** Replace the if-else chain with a declarative rule table. Priority becomes explicit; cross-rule conflicts become impossible to miss.
+3. **Follow-up (1 hr):** Store `radioName` on extracted Ashby groups so `clickAshbyButtonGroup` can target them directly instead of re-scanning all divs.
+
+## 2026-04-28 06:45 AM PDT
+
+- **Investigation: Checkbox and Radio Button Failures**
+    - **Root Cause 1 (Regex Mismatch):** The disability question was incorrectly matching `educationDiscipline` because the label contains "major life activities" and the regex was over-eagerly matching "major".
+    - **Root Cause 2 (Property Access):** `lib/answerPlan.js` was attempting to access `profile.standard.gender` instead of `profile.sensitive.gender`.
+    - **Root Cause 3 (Checkbox Styling):** Standard `.check()` calls were failing on Ashby/Greenhouse checkboxes due to custom CSS styling hiding the native input.
+- **Implemented Fixes:**
+    - Fixed `educationDiscipline` regex with word boundaries (`\bmajor\b`).
+    - Corrected property access for sensitive profile fields.
+    - Switched checkbox logic to `click({ force: true })` after checking state with `isChecked()`.
+    - Implemented a "demographicOption" mapping logic in `lib/answerPlan.js` to handle individual checkboxes (e.g., "South Asian", "Woman").
+    - Enhanced `platforms/ashby.js` with fuzzy matching and keywords (e.g., `disab`) to locate radio groups with extremely long labels.
+- **Persistent Issue:** The latest dry run (`2026-04-28T06-40-54-782Z`) still shows `choice_not_found` for the disability radio button (`ashby_group_1`). The bot is successfully finding other button groups but failing to locate the container or the specific buttons for the disability question despite fuzzy matching logic.
+
 ## 2026-04-27 05:00 AM PDT
 
 - Implemented **Job Queue Management** system to automate the transition of processed URLs from `jobs.txt` to status-specific history files.
