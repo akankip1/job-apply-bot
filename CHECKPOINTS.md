@@ -1,6 +1,23 @@
 # Checkpoints
 
-## 2026-04-28 (end of session) — Location Autocomplete Root Cause Found
+## 2026-04-28 (3:00 AM PT) — Ashby "Seamless" Model & Idempotency Verified
+
+**Full dry-run success on Superhuman job (dc070a50) with 0 un-selections.**
+
+### Successes
+- **Ashby Location Persistence:** Resolved "disappearing location" by switching to a deliberate `ArrowDown` + `Enter` keyboard sequence and moving Location to the *start* of the fill sequence.
+- **Form Idempotency:** Implemented `globallyFilledKeys` in `platforms/ashby.js` to track logical categories (e.g., `category:location`, `category:resume_autofill`).
+- **Toggle Prevention:** Modified `clickAshbyButtonGroup` to verify `isChecked` state before clicking. This prevents the "un-marking" behavior previously caused by re-rendering or duplicate fill passes.
+- **Smart Resume Logic:** Distinguished between `resume_autofill_upload` and `resume_attachment_upload`, ensuring the bot only processes the autofill widget once while still allowing a separate CV attachment if requested.
+- **History tracking:** Updated `apply.js` to maintain a `fillHistory` across multi-step forms using label-based "Stateful Identity".
+
+### Status
+- **Ashby:** Fully stable and idempotent. Verified that dynamic passes no longer clear previously selected radio buttons.
+- **Overall:** Ready for high-volume automated runs.
+
+---
+
+## 2026-04-28 (earlier) — Location Autocomplete Root Cause Found
 
 **Berlin Superhuman job (dc070a50) — all blockers except location are resolved.**
 
@@ -164,4 +181,3 @@ Documented in `Specs/FIX.md`. Key findings:
 
 - **Ashby:** Verified dry-run on Superhuman job. Most fields (Gender, Ethnicity, Veteran, Transgender, Auth, Relocation) now fill correctly.
 - **Known Issue:** Disability question matching is being refined; the latest dry-run showed successful matching of the "No" variation for other fields but still requires verification for the specific long disability string.
-

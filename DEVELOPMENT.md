@@ -51,18 +51,46 @@ Use the artifact that failed to decide where the change belongs:
 
 Do not hardcode applicant data in source files. Profile-derived answers belong in `Specs/sravya_narayana_application_profile.md`; reusable manually approved answers belong in `answers.json`.
 
-### Answer Planning
+### Hybrid Answer Planning (LLMification)
 
-`lib/answerPlan.js` is the shared decision layer. Prefer broad, stable question patterns when they are genuinely reusable across employers, such as:
+The decision layer (`lib/answerPlan.js`) uses a **Hybrid Multi-Layer Decision System** to map form fields to profile data. This architecture replaces fragile regex chains with a robust, intent-based approach.
 
-- name, email, phone, location, resume, LinkedIn
-- work authorization, sponsorship, demographics, and compensation when explicitly approved
-- previous employment by the company
-- relocation or hybrid-work comfort
+#### Layer 1: Semantic Embedding Classifier (Primary)
+- **Engine:** Local `all-MiniLM-L6-v2` transformer model via `@xenova/transformers`.
+- **Reference Set:** A harvested knowledge base of ~130 "Gold Standard" questions (`lib/reference-questions.json`).
+- **Mechanism:** Form labels are converted into vectors and compared against the reference set using cosine similarity. A match with a score > 0.85 is considered a "high-confidence intent match."
+- **Benefits:** Seamlessly handles semantic variations (e.g., "Where are you based?" vs. "Current Location") and provides stable field identity across form re-renders.
 
-Keep company-specific wording out of adapters when the underlying question is general. For example, "Have you ever worked for a Sony company previously?" maps to the reusable previous-employment answer, not a Sony-specific adapter rule.
+#### Layer 2: Declarative Rule Engine (Overrider)
+- **Engine:** The `RULES` table in `lib/answerPlan.js`.
+- **Use Case:** Specialized logic that semantic matching cannot handle alone, such as word-boundary checks for "major" (to avoid education vs. disability conflicts) or complex range mapping for years of experience.
+- **Priority:** Explicit rules always take precedence over semantic matches.
 
-For follow-up prompts like "If yes, explain...", do not infer an answer from unrelated profile fields. Leave the field manual or optional unless there is an explicit approved answer.
+#### Layer 3: Manual Review Fallback (Safety)
+- **Mechanism:** If no high-confidence match is found in either layer, the field is marked for `manualReview`.
+- **Submit Guard:** Any field in this state blocks automated submission, ensuring the bot never "hallucinates" an answer for a sensitive or unknown field.
+
+**Testing Mapping:**
+Always run the regression test after changing rules or references. This catches mapping conflicts in milliseconds:
+
+```powershell
+# Run against the latest saved schema from a dry run
+node scripts/test-answer-plan.js "runs\<latest_run_dir>\job-1-step-0-form-schema.json"
+```
+
+### Classifier Maintenance
+
+The classifier depends on a precomputed reference set and a local transformer model.
+
+- **Harvesting New References:** If you encounter new form questions, you can "teach" the classifier by harvesting mappings from recent successful dry runs:
+  ```powershell
+  node scripts/build-reference.js
+  ```
+- **Building Embeddings:** To precompute the vector representation of the reference questions (required for similarity matching):
+  ```powershell
+  node scripts/build-embeddings.js
+  ```
+- **Model Storage:** The `all-MiniLM-L6-v2` model is stored in the local `@xenova/transformers` cache. If you clear `node_modules`, `build-embeddings.js` will re-download it.
 
 ### Platform Behavior
 
