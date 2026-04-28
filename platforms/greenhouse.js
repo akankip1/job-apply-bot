@@ -49,6 +49,7 @@ async function extract(page) {
   const filteredFields = fields.filter((field) => {
     const label = normalizeText(field.label);
     const hasStableName = field.id || field.name;
+    if (!hasStableName && label === "phone" && fields.some((item) => item.id === "phone")) return false;
     if (!hasStableName && /^(select|select option|select one)$/.test(label)) return false;
     if (!hasStableName && !label) return false;
     return true;
@@ -72,6 +73,46 @@ function fieldLocator(frame, decision) {
   return frame.locator(CONTROL_SELECTOR).nth(decision.index);
 }
 
+function answerMatches(value, answer) {
+  const normalizedValue = normalizeText(value);
+  const normalizedAnswer = normalizeText(answer);
+  return !!normalizedValue && (normalizedValue === normalizedAnswer || normalizedValue.includes(normalizedAnswer));
+}
+
+function shouldVerifyText(decision) {
+  return ["email", "text", "textarea", "tel", "input"].includes(decision.type) && decision.safeToFill && decision.answer;
+}
+
+async function verifyTextValue(frame, locator, decision, log) {
+  if (!shouldVerifyText(decision)) return { filled: true };
+
+  const answer = String(decision.answer || "");
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const value = await locator.inputValue({ timeout: 1000 }).catch(() => "");
+    if (answerMatches(value, answer)) {
+      log("greenhouse_text_value_verified", { fieldId: decision.fieldId, label: decision.label, attempt });
+      return { filled: true };
+    }
+
+    await locator.click({ timeout: 3000 }).catch(() => {});
+    await locator.fill("", { timeout: 1000 }).catch(() => {});
+    await locator.fill(answer, { timeout: 3000 }).catch(async () => {
+      await locator.pressSequentially(answer, { timeout: 5000 }).catch(() => {});
+    });
+    await locator.evaluate((el) => {
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      el.blur();
+    }).catch(() => {});
+    await frame.waitForTimeout(150);
+  }
+
+  const finalValue = await locator.inputValue({ timeout: 1000 }).catch(() => "");
+  if (answerMatches(finalValue, answer)) return { filled: true };
+  log("greenhouse_text_value_mismatch", { fieldId: decision.fieldId, label: decision.label, expected: answer, actual: finalValue });
+  return { filled: false, reason: "value_not_persisted" };
+}
+
 async function selectOption(locator, answer) {
   const options = await locator.locator("option").evaluateAll((els) =>
     els.map((el) => ({ label: el.textContent.trim(), value: el.value }))
@@ -90,6 +131,11 @@ async function clickChoice(frame, decision) {
   const label = decision.label || "";
   const answer = decision.answer || "";
   const field = fieldLocator(frame, decision);
+  if (decision.type === "checkbox" && /^(yes|true|checked)$/i.test(String(answer).trim())) {
+    await field.check({ timeout: 3000 });
+    return true;
+  }
+
   const parent = field.locator("xpath=ancestor::*[self::fieldset or @role='radiogroup' or @role='group' or self::div][1]");
   const exactText = new RegExp(`^\\s*${escapeRegExp(answer)}\\s*$`, "i");
   const choices = parent.getByText(exactText);
@@ -135,7 +181,7 @@ async function fillDecision(page, decision, log) {
     }
 
     await locator.fill(String(decision.answer), { timeout: 3000 });
-    return { filled: true };
+    return verifyTextValue(frame, locator, decision, log);
   } catch (error) {
     log("field_fill_failed", { fieldId: decision.fieldId, label: decision.label, error: error.message });
     return { filled: false, reason: "fill_failed", error: error.message };
@@ -162,6 +208,8 @@ async function fillComboboxLikeField(frame, locator, answer, log, decision) {
       await locator.pressSequentially(wanted, { timeout: 3000 }).catch(() => {});
     });
     await frame.waitForTimeout(500);
+
+    if (await clickVisibleOption(frame, wanted, decision, log, "typed")) return true;
 
     const exact = new RegExp(`^\\s*${escapeRegExp(wanted)}\\s*$`, "i");
     const contains = new RegExp(escapeRegExp(wanted), "i");
@@ -192,6 +240,37 @@ async function fillComboboxLikeField(frame, locator, answer, log, decision) {
     const accepted = !!normalizedValue && (normalizedValue.includes(normalizedWanted) || normalizedWanted.includes(normalizedValue));
     log("dropdown_enter_attempted", { fieldId: decision.fieldId, label: decision.label, answer: wanted, originalAnswer: answer, value, accepted });
     if (accepted) return true;
+  }
+
+  return false;
+}
+
+async function clickVisibleOption(frame, wanted, decision, log, strategy) {
+  const exact = new RegExp(`^\\s*${escapeRegExp(wanted)}\\s*$`, "i");
+  const contains = new RegExp(escapeRegExp(wanted), "i");
+  const selectors = [
+    "[role='option']",
+    "[role='listbox'] *",
+    "[id*='listbox'] *",
+    "[class*='menu'] *",
+    "[class*='option']",
+    "li",
+  ];
+
+  for (const selector of selectors) {
+    for (const re of [exact, contains]) {
+      const options = frame.locator(selector).filter({ hasText: re });
+      const count = await options.count().catch(() => 0);
+      for (let i = 0; i < count; i += 1) {
+        const option = options.nth(i);
+        if (await option.isVisible().catch(() => false)) {
+          const text = await option.innerText({ timeout: 1000 }).catch(() => "");
+          await option.click({ timeout: 3000 });
+          log("greenhouse_dropdown_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted, optionText: text, strategy });
+          return true;
+        }
+      }
+    }
   }
 
   return false;
