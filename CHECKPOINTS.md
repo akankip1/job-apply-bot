@@ -1,5 +1,42 @@
 # Checkpoints
 
+## 2026-04-28 (end of session) — Location Autocomplete Root Cause Found
+
+**Berlin Superhuman job (dc070a50) — all blockers except location are resolved.**
+
+### What was fixed this session
+
+- **Button group verification bug** (`ashby.js`): `clickAshbyButtonGroup` was checking `input[type='radio']` checked state after clicking a `<button>` element. Buttons have no checked state so verification always failed. Fix: trust the click for `button`/`role=button` elements.
+- **Years of experience** (`answerPlan.js` + profile): Added `yearsOfExperience: 4` to profile. Added RULES entry that picks the matching range option (e.g. "1-4 years of experience") from button group options array.
+- **EU question**: Added `locatedInEU` rule returning `"No"` for "Are you located in the European Union?".
+
+### Location autocomplete — root cause found
+
+Debug dump (`ashby_location_debug`) revealed:
+1. `finalInputValue: ""` — the location input was **never touched**. `nth(8)` index drifted after `greenhouse.fill()` mutated the DOM.
+2. `[role='listbox']` with text "No results" — the dropdown appeared on the **wrong** field, and "Sea" (3 chars) returned no results anyway.
+
+**Fix applied** (`fillLocationCombobox` in `ashby.js`):
+- Find input by `input[placeholder*='typing']` instead of `nth(index)`.
+- Type full city name (not just 3 chars).
+- Wait for `[role='listbox']` to appear, then poll until it stops showing "No results".
+- Click first child matching the city regex.
+
+**Status:** Fix written, not yet verified by a dry run. Run `--limit 1` on the Berlin job and check for `ashby_location_option_selected` in the log.
+
+## 2026-04-28 01:00 PT — Embedding-Based Question Classification
+
+Implemented the Semantic Similarity approach from `LLMIFY.md` to replace brittle regex-based label matching.
+
+- **Harvested Reference Set:** 129 successful mappings extracted from `runs/`.
+- **Local Model:** Integrated `@xenova/transformers` with `all-MiniLM-L6-v2` (runs locally on CPU).
+- **Asynchronous Logic:** Updated `lib/answerPlan.js`, `apply.js`, and `scripts/test-answer-plan.js` to support async classification.
+- **Verification:** 13/13 mapping tests passed, including semantic fallbacks for phone and GitHub URLs.
+- **Security:** Added `.geminiignore` to prevent LLM context bloat and protect sensitive paths.
+
+**Status:** Ready for regression testing against real job schemas.
+
+
 ## 2026-04-28 (latest session)
 
 ### Bug Fixed: Disability Question Mapped to `educationDiscipline`

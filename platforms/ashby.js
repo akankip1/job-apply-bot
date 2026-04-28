@@ -22,7 +22,6 @@ function fieldLocator(frame, decision) {
 async function extractAshbyButtonGroups(frame, existingCount) {
   return frame.evaluate((startIndex) => {
     function getGroupLabel(group) {
-      // Look for a label or heading that is a direct sibling or closely preceding.
       const heading = group.querySelector("h1, h2, h3, h4, h5, h6, [class*='label'], [class*='title'], [class*='heading'], legend");
       if (heading && heading.innerText.trim()) return heading.innerText.trim();
       
@@ -46,7 +45,6 @@ async function extractAshbyButtonGroups(frame, existingCount) {
     const seenLabels = new Set();
     const allContainers = Array.from(document.querySelectorAll("div, fieldset, [role='radiogroup']"));
     
-    // Deepest first to find specific groups.
     const sortedContainers = allContainers.sort((a, b) => {
       const depthA = document.evaluate("count(ancestor::*)", a, null, XPathResult.NUMBER_TYPE, null).numberValue;
       const depthB = document.evaluate("count(ancestor::*)", b, null, XPathResult.NUMBER_TYPE, null).numberValue;
@@ -56,14 +54,9 @@ async function extractAshbyButtonGroups(frame, existingCount) {
     const claimedControls = new Set();
 
     for (const group of sortedContainers) {
-      const controls = Array.from(group.querySelectorAll("button, input[type='radio']"));
-      if (controls.length < 2 || controls.length > 4) continue;
+      const controls = Array.from(group.querySelectorAll("button, input[type='radio'], [role='radio'], [role='button']"));
+      if (controls.length < 2 || controls.length > 10) continue;
       
-      const texts = controls.map(c => (c.innerText || c.labels?.[0]?.innerText || "").trim().toLowerCase());
-      const hasYes = texts.some(t => /^yes\b/.test(t));
-      const hasNo = texts.some(t => /^no\b/.test(t));
-      
-      if (!hasYes || !hasNo) continue;
       if (controls.some(c => claimedControls.has(c))) continue;
       controls.forEach(c => claimedControls.add(c));
 
@@ -71,7 +64,7 @@ async function extractAshbyButtonGroups(frame, existingCount) {
       if (!label || seenLabels.has(label) || label.length > 300) continue;
       seenLabels.add(label);
       
-      const isRadio = controls.every(c => c.tagName.toLowerCase() === 'input');
+      const isRadio = controls.every(c => c.tagName.toLowerCase() === 'input' || c.getAttribute('role') === 'radio');
       const id = group.getAttribute("data-testid") || group.id || `ashby_group_${fields.length}`;
       
       fields.push({
@@ -86,8 +79,8 @@ async function extractAshbyButtonGroups(frame, existingCount) {
         normalizedLabel: label.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
         type: "radio",
         tag: isRadio ? "radio-group" : "button-group",
-        required: group.innerText.includes("*") || /willing to move|authorized|sponsorship|relocate|disability|veteran|gender|race|ethnic/i.test(label),
-        options: ["Yes", "No"],
+        required: group.innerText.includes("*") || /willing to move|authorized|sponsorship|relocate|disability|veteran|gender|race|ethnic|experience/i.test(label),
+        options: controls.map(c => (c.innerText || c.labels?.[0]?.innerText || "").trim()),
         visible: true,
         disabled: false,
         _childIndices: controls.map(c => Array.from(document.querySelectorAll("input:not([type='hidden']), textarea, select")).indexOf(c)).filter(i => i !== -1)
@@ -129,17 +122,23 @@ async function extract(page) {
 async function clickAshbyButtonGroup(page, decision, log) {
   const wanted = String(decision.answer || "").trim();
   if (!wanted) return { filled: false, reason: decision.reason };
-  const question = normalizeText(decision.label);
   
-  // Expanded matchers for Yes/No
+  const isYesNo = /^(yes|no|true|false)$/i.test(wanted);
+  const isWantedYes = /^(yes|true)$/i.test(wanted);
+
   const yesMatchers = [/^\s*yes\b/i, /i have a disability/i, /i am a veteran/i, /identify as transgender/i, /i identify as/i, /i have/i];
   const noMatchers = [/^\s*no\b/i, /don't have a disability/i, /do not have a disability/i, /not a veteran/i, /do not identify/i, /don't identify/i, /prefer not to/i, /i do not/i, /i don't/i, /i do not have a disability/i];
 
-  const isWantedYes = /^(yes|true)$/i.test(wanted);
-  const matchers = isWantedYes ? yesMatchers : noMatchers;
+  let matchers = [];
+  if (isYesNo) {
+    matchers = isWantedYes ? yesMatchers : noMatchers;
+  } else {
+    matchers = [new RegExp(escapeRegExp(wanted), "i")];
+  }
+
+  const question = normalizeText(decision.label);
 
   for (const frame of page.frames()) {
-    // If we have a stable radio name from extraction, use it directly.
     if (decision.radioName) {
       const inputs = frame.locator(`input[type="radio"][name="${decision.radioName}"]`);
       const count = await inputs.count().catch(() => 0);
@@ -165,7 +164,6 @@ async function clickAshbyButtonGroup(page, decision, log) {
     }
 
     const questionPrefix = decision.label.slice(0, 50);
-    // Ashby often uses fieldsets with legends or divs with labels.
     const allDivs = frame.locator("div, fieldset, [role='radiogroup'], [role='group']");
     const divCount = await allDivs.count().catch(() => 0);
     
@@ -177,7 +175,6 @@ async function clickAshbyButtonGroup(page, decision, log) {
       if (!rawText) continue;
       
       const text = normalizeText(rawText);
-      // Fuzzy match: either it includes the full question, a high-confidence match on the prefix, or common keywords for the specific field
       const isMatch = text.includes(question) || 
                       text.includes(normalizeText(questionPrefix)) ||
                       (/disab/i.test(decision.label) && /disab/i.test(text));
@@ -191,8 +188,7 @@ async function clickAshbyButtonGroup(page, decision, log) {
 
     if (best) {
       log("ashby_group_found", { fieldId: decision.fieldId, text: best.text });
-      // If it's a fieldset, the legend might be separate. If we found a container that contains buttons, we're good.
-      const controls = best.group.locator("button, label, input[type='radio']");
+      const controls = best.group.locator("button, label, [role='radio'], [role='button'], input[type='radio']");
       const controlCount = await controls.count().catch(() => 0);
       
       for (const matcher of matchers) {
@@ -204,14 +200,20 @@ async function clickAshbyButtonGroup(page, decision, log) {
               labelText: (el.labels && el.labels[0] ? el.labels[0].innerText : "").trim(),
               value: el.value || "",
               tagName: el.tagName.toLowerCase(),
-              type: el.type || ""
+              role: el.getAttribute("role") || ""
             };
-          }).catch(() => ({ text: "", labelText: "", value: "", tagName: "", type: "" }));
+          }).catch(() => ({ text: "", labelText: "", value: "", tagName: "", role: "" }));
           
-          const combinedText = `${meta.text} ${meta.labelText} ${meta.tagName === "input" && meta.type === "radio" ? meta.value : ""}`.trim();
+          const combinedText = `${meta.text} ${meta.labelText} ${meta.value}`.trim();
           if (matcher.test(combinedText)) {
-            if (await control.isVisible().catch(() => false)) {
-              await control.click({ timeout: 3000 });
+            await control.click({ force: true, timeout: 3000 }).catch(() => {});
+
+            const isButton = meta.tagName === "button" || meta.role === "button";
+            const confirmed = isButton || await best.group.locator("input[type='radio'], [aria-checked='true']").evaluateAll(els =>
+              els.some(el => el.checked || el.getAttribute("aria-checked") === "true")
+            ).catch(() => false);
+
+            if (confirmed) {
               log("ashby_group_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted, matchedText: combinedText });
               return { filled: true };
             }
@@ -219,19 +221,16 @@ async function clickAshbyButtonGroup(page, decision, log) {
         }
       }
     } else {
-      // Fallback: search for buttons/inputs globally in this frame if we couldn't find a clean group
-      const possibleControls = frame.locator("button, input[type='radio']");
+      const possibleControls = frame.locator("button, label, input[type='radio']");
       const possibleCount = await possibleControls.count().catch(() => 0);
       for (let i = 0; i < possibleCount; i++) {
         const control = possibleControls.nth(i);
-        const val = await control.evaluate(el => el.value || el.innerText || "").catch(() => "");
-        if (isWantedYes && /^\s*yes\b/i.test(val) || !isWantedYes && /^\s*no\b/i.test(val)) {
-            // Check if this button is near the question text
+        const val = await control.evaluate(el => el.innerText || el.labels?.[0]?.innerText || "").catch(() => "");
+        if (matchers.some(m => m.test(val))) {
             const isNear = await control.evaluate((el, q) => {
                 const body = document.body.innerText.toLowerCase();
                 const idx = body.indexOf(q.toLowerCase());
                 if (idx === -1) return false;
-                // This is a very rough heuristic
                 return true; 
             }, questionPrefix).catch(() => false);
             
@@ -248,28 +247,96 @@ async function clickAshbyButtonGroup(page, decision, log) {
   return { filled: false, reason: "choice_not_found" };
 }
 
+async function getAshbyLocationLocator(frame, decision) {
+  const candidates = [
+    frame.locator("input[placeholder='Start typing...']").first(),
+    frame.locator("input[placeholder*='Start typing']").first(),
+    frame.locator("input[placeholder*='typing']").first(),
+    frame.locator("input[aria-label*='location' i]").first(),
+    frame.locator("input[aria-label*='based' i]").first(),
+  ];
+
+  for (const candidate of candidates) {
+    if (await candidate.count().catch(() => 0)) {
+      if (await candidate.isVisible().catch(() => false)) {
+        return candidate;
+      }
+    }
+  }
+
+  return fieldLocator(frame, decision);
+}
+
 async function fillLocationCombobox(page, decision, log) {
   const city = String(decision.answer || "").split(",")[0].trim();
   if (!city) return { filled: false, reason: "missing_location" };
-  const frame = page.frames().find((item) => item.url() === decision.frameUrl) || page.mainFrame();
-  const locator = fieldLocator(frame, decision);
 
-  await locator.click({ timeout: 3000 });
-  await locator.fill(city, { timeout: 3000 });
-  await frame.waitForTimeout(700);
+  const frame =
+    page.frames().find((item) => item.url() === decision.frameUrl) ||
+    page.frames().find((item) => /ashbyhq\.com/i.test(item.url())) ||
+    page.mainFrame();
 
-  const option = frame.locator("[role='option'], [class*='option'], [class*='select'] li, li").filter({ hasText: new RegExp(escapeRegExp(city), "i") }).first();
-  if (await option.isVisible().catch(() => false)) {
-    const text = await option.innerText({ timeout: 1000 }).catch(() => "");
-    await option.click({ timeout: 3000 });
-    log("ashby_location_option_selected", { fieldId: decision.fieldId, typed: city, optionText: text });
-    return { filled: true };
+  const cityRe = new RegExp(escapeRegExp(city), "i");
+  const locator = await getAshbyLocationLocator(frame, decision);
+
+  await locator.scrollIntoViewIfNeeded().catch(() => {});
+  await locator.click({ force: true, timeout: 3000 });
+  await locator.focus();
+  await frame.waitForTimeout(300);
+  
+  await locator.fill("", { timeout: 1000 }).catch(() => {});
+  await frame.waitForTimeout(200);
+
+  // Type full city name at a human pace
+  await locator.pressSequentially(city, { delay: 150 });
+  await frame.waitForTimeout(1500); // Wait for API
+
+  const listboxSelectors = [
+    frame.locator("[role='listbox']").first(),
+    page.locator("[role='listbox']").first(),
+    frame.locator("[class*='listbox']").first(),
+    page.locator("[class*='listbox']").first(),
+  ];
+
+  let listbox = null;
+  let appeared = false;
+
+  for (const selector of listboxSelectors) {
+    appeared = await selector.waitFor({ state: "visible", timeout: 3000 }).then(() => true).catch(() => false);
+    if (appeared) {
+      listbox = selector;
+      break;
+    }
   }
 
-  const value = await locator.inputValue({ timeout: 1000 }).catch(() => "");
-  return normalizeText(value).includes(normalizeText(city))
-    ? { filled: true }
-    : { filled: false, reason: "location_option_not_found" };
+  if (!appeared) {
+    log("ashby_location_debug", { fieldId: decision.fieldId, city, reason: "listbox_never_appeared" });
+    return { filled: false, reason: "location_listbox_not_found" };
+  }
+
+  // Filter for the best match - prefer the first one but ensure it's visible
+  const options = listbox.locator("[role='option'], li, div[class*='option'], button");
+  const count = await options.count().catch(() => 0);
+  
+  let selected = false;
+  for (let i = 0; i < Math.min(count, 3); i++) {
+    const opt = options.nth(i);
+    const text = await opt.innerText().catch(() => "");
+    if (cityRe.test(text)) {
+      await opt.click({ force: true, timeout: 3000 });
+      log("ashby_location_selected", { fieldId: decision.fieldId, typed: city, optionText: text, index: i });
+      selected = true;
+      break;
+    }
+  }
+
+  if (selected) {
+    await frame.waitForTimeout(1000); // Wait for potential state reset
+    const finalValue = await locator.inputValue({ timeout: 1000 }).catch(() => "");
+    return { filled: true, finalValue };
+  }
+
+  return { filled: false, reason: "matching_location_not_found" };
 }
 
 function isTextDecision(decision) {
@@ -319,11 +386,15 @@ async function fill(page, plan, log) {
 
   for (const decision of plan.decisions) {
     if (!decision.safeToFill) continue;
-    if (decision.type === "radio" && /yes|no/i.test(String(decision.answer))) {
+    
+    if (String(decision.fieldId).startsWith("ashby_group_")) {
       specialDecisions.add(decision.fieldId);
       continue;
-    } else if (decision.label === "Where are you currently based?") {
+    }
+
+    if (decision.label === "Where are you currently based?") {
       specialDecisions.add(decision.fieldId);
+      continue;
     }
   }
 
@@ -331,19 +402,34 @@ async function fill(page, plan, log) {
     ...plan,
     decisions: plan.decisions.filter((decision) => !specialDecisions.has(decision.fieldId)),
   };
+  
+  // 1. Fill Greenhouse-handled fields
   results.push(...await greenhouse.fill(page, remainingPlan, log));
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(500);
 
+  // 2. Fill standard text fields
   for (const decision of remainingPlan.decisions.filter(isTextDecision)) {
     results.push({ fieldId: decision.fieldId, ...await fillTextAndVerify(page, decision, log) });
   }
 
-  for (const decision of plan.decisions) {
-    if (!decision.safeToFill) continue;
-    if (decision.type === "radio" && /yes|no/i.test(String(decision.answer))) {
-      results.push({ fieldId: decision.fieldId, ...await clickAshbyButtonGroup(page, decision, log) });
-    } else if (decision.label === "Where are you currently based?") {
-      results.push({ fieldId: decision.fieldId, ...await fillLocationCombobox(page, decision, log) });
+  // 3. Fill Button Groups (First Pass)
+  const groupDecisions = plan.decisions.filter(d => specialDecisions.has(d.fieldId) && d.label !== "Where are you currently based?");
+  for (const decision of groupDecisions) {
+    results.push({ fieldId: decision.fieldId, ...await clickAshbyButtonGroup(page, decision, log) });
+  }
+
+  // 4. Fill Location (LAST)
+  const locationDecision = plan.decisions.find(d => d.label === "Where are you currently based?" && d.safeToFill);
+  if (locationDecision) {
+    results.push({ fieldId: locationDecision.fieldId, ...await fillLocationCombobox(page, locationDecision, log) });
+    
+    // 5. CLEANUP PASS: Re-verify critical button groups that Ashby often resets
+    await page.waitForTimeout(1000);
+    log("ashby_cleanup_pass", { message: "Re-verifying critical button groups after location fill" });
+    for (const decision of groupDecisions) {
+      if (/european union|visa sponsorship|relocate/i.test(decision.label)) {
+        await clickAshbyButtonGroup(page, decision, log);
+      }
     }
   }
 

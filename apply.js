@@ -115,7 +115,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
     schemaPath,
   });
 
-  const plan = createAnswerPlan(schema, profile, answers);
+  const plan = await createAnswerPlan(schema, profile, answers);
   const planPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-answer-plan.json`);
   writeJson(planPath, plan);
   log("answer_plan_created", {
@@ -150,7 +150,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
         schemaPath: dynamicSchemaPath,
       });
 
-      const dynamicPlan = createAnswerPlan(dynamicOnlySchema, profile, answers);
+      const dynamicPlan = await createAnswerPlan(dynamicOnlySchema, profile, answers);
       const dynamicPlanPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-dynamic-answer-plan.json`);
       writeJson(dynamicPlanPath, dynamicPlan);
       log("dynamic_answer_plan_created", {
@@ -235,6 +235,8 @@ async function processJob(context, url, profile, answers, jobIndex) {
       jobState.status = blockerStatus(jobState.blockers);
       await saveScreenshot(page, jobIndex, "blocked-manual-review");
       log("job_blocked", { blockers: jobState.blockers });
+    } else if (jobState.status === FINAL_STATUS.DRY_RUN) {
+      log("dry_run_verified", { message: "All required fields filled or planned. No blockers." });
     }
 
     return jobState.status;
