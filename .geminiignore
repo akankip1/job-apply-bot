@@ -1,0 +1,13 @@
+node_modules/
+.browser-profile/
+runs/
+logs/
+screenshots/
+.cache/
+dist/
+coverage/
+*.log
+package-lock.json
+.git/
+.idea/
+.vscode/

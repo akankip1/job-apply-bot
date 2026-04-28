@@ -1,0 +1,647 @@
+[
+  {
+    "label": "First Name*",
+    "key": "firstName",
+    "sensitive": false
+  },
+  {
+    "label": "Last Name*",
+    "key": "lastName",
+    "sensitive": false
+  },
+  {
+    "label": "Preferred First Name",
+    "key": "preferredName",
+    "sensitive": false
+  },
+  {
+    "label": "Email*",
+    "key": "email",
+    "sensitive": false
+  },
+  {
+    "label": "Phone Country* Country*",
+    "key": "country",
+    "sensitive": false
+  },
+  {
+    "label": "Phone",
+    "key": "phone",
+    "sensitive": false
+  },
+  {
+    "label": "Phone Phone* Phone*",
+    "key": "phone",
+    "sensitive": false
+  },
+  {
+    "label": "Location (City)*",
+    "key": "city",
+    "sensitive": false
+  },
+  {
+    "label": "Attach",
+    "key": "resume",
+    "sensitive": false
+  },
+  {
+    "label": "Are you currently eligible to work in the country outlined for this position, and authorized to work for Navan on an ongoing indefinite basis?*",
+    "key": "workAuthorization",
+    "sensitive": true
+  },
+  {
+    "label": "Will you now or in the future require sponsorship by Navan to attain or maintain your employment eligibility?*",
+    "key": "sponsorship",
+    "sensitive": true
+  },
+  {
+    "label": "LinkedIn Profile*",
+    "key": "linkedIn",
+    "sensitive": false
+  },
+  {
+    "label": "Gender",
+    "key": "gender",
+    "sensitive": true
+  },
+  {
+    "label": "Ethnicity",
+    "key": "ethnicity",
+    "sensitive": true
+  },
+  {
+    "label": "Veteran Status",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "How did you hear about this job?*",
+    "key": "howDidYouHear",
+    "sensitive": false
+  },
+  {
+    "label": "This role operates on a hybrid work model, requiring you to work from one of our global offices 4 days per week (including 2 Fridays each month). Are you comfortable with this policy, and are you currently located at, or willing to relocate to, one of our office locations?*",
+    "key": "hybridRelocation",
+    "sensitive": false
+  },
+  {
+    "label": "Have you ever been employed by, applied to, or are you currently employed by Navan or any of its affiliated or group companies (Reed & Mackay)?*",
+    "key": "previousEmployment",
+    "sensitive": false
+  },
+  {
+    "label": "Location (City)*",
+    "key": "locationCity",
+    "sensitive": false
+  },
+  {
+    "label": "School*",
+    "key": "educationSchool",
+    "sensitive": false
+  },
+  {
+    "label": "Degree*",
+    "key": "educationDegree",
+    "sensitive": false
+  },
+  {
+    "label": "Discipline*",
+    "key": "educationDiscipline",
+    "sensitive": false
+  },
+  {
+    "label": "Start date month*",
+    "key": "educationStartMonth",
+    "sensitive": false
+  },
+  {
+    "label": "Start date year*",
+    "key": "educationStartYear",
+    "sensitive": false
+  },
+  {
+    "label": "End date month*",
+    "key": "educationEndMonth",
+    "sensitive": false
+  },
+  {
+    "label": "End date year*",
+    "key": "educationEndYear",
+    "sensitive": false
+  },
+  {
+    "label": "Current/Previous Company: Please add previous company if you are currently unemployed *",
+    "key": "currentEmployer",
+    "sensitive": false
+  },
+  {
+    "label": "Current Title*",
+    "key": "currentTitle",
+    "sensitive": false
+  },
+  {
+    "label": "Attach",
+    "key": "coverLetter",
+    "sensitive": false
+  },
+  {
+    "label": "Autofill from resume Upload your resume here to autofill key application fields. Upload file",
+    "key": "resume",
+    "sensitive": false
+  },
+  {
+    "label": "Preferred Name",
+    "key": "preferredName",
+    "sensitive": false
+  },
+  {
+    "label": "Email",
+    "key": "email",
+    "sensitive": false
+  },
+  {
+    "label": "Resume",
+    "key": "resume",
+    "sensitive": false
+  },
+  {
+    "label": "How did you hear about us?",
+    "key": "howDidYouHear",
+    "sensitive": false
+  },
+  {
+    "label": "Linkedin profile",
+    "key": "linkedIn",
+    "sensitive": false
+  },
+  {
+    "label": "LinkedIn URL",
+    "key": "linkedIn",
+    "sensitive": false
+  },
+  {
+    "label": "Name",
+    "key": "fullName",
+    "sensitive": false
+  },
+  {
+    "label": "Where are you currently based?",
+    "key": "location",
+    "sensitive": false
+  },
+  {
+    "label": "Are you willing to move to SF/Vancouver and work in person with us?",
+    "key": "hybridRelocation",
+    "sensitive": false
+  },
+  {
+    "label": "Do you require a visa?",
+    "key": "sponsorship",
+    "sensitive": true
+  },
+  {
+    "label": "LinkedIn Profile",
+    "key": "linkedIn",
+    "sensitive": false
+  },
+  {
+    "label": "Are you authorized to work in the United States?*",
+    "key": "workAuthorization",
+    "sensitive": true
+  },
+  {
+    "label": "Will you now, or in the future, require sponsorship to work in the United States?*",
+    "key": "sponsorship",
+    "sensitive": true
+  },
+  {
+    "label": "Will you need relocation assistance to work at this role's specified location?*",
+    "key": "hybridRelocation",
+    "sensitive": false
+  },
+  {
+    "label": "If yes, please state their name, the department or studio they work for, and their job title (if you know it).",
+    "key": "currentTitle",
+    "sensitive": false
+  },
+  {
+    "label": "Gender*",
+    "key": "gender",
+    "sensitive": true
+  },
+  {
+    "label": "Gender Identity*",
+    "key": "gender",
+    "sensitive": true
+  },
+  {
+    "label": "Sexual Orientation*",
+    "key": "gender",
+    "sensitive": true
+  },
+  {
+    "label": "Please identify your race/ethnicity*",
+    "key": "ethnicity",
+    "sensitive": true
+  },
+  {
+    "label": "Are you a protected veteran? *",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "Do you have a disability? *",
+    "key": "disability",
+    "sensitive": true
+  },
+  {
+    "label": "Have you ever worked for a Sony company previously?*",
+    "key": "previousEmployment",
+    "sensitive": false
+  },
+  {
+    "label": "Sexual Orientation*",
+    "key": "lgbtq",
+    "sensitive": true
+  },
+  {
+    "label": "Will you need relocation assistance to work at this role's specified location?*",
+    "key": "relocationAssistance",
+    "sensitive": false
+  },
+  {
+    "label": "Are you related to, or in a close personal relationship with, anyone who currently works for SIE or any SIE-affiliated studios? (This includes spouses, domestic partners, and significant others.)*",
+    "key": "relatedToCompanyEmployee",
+    "sensitive": false
+  },
+  {
+    "label": "By selecting \"Yes\", I am certifying that, to the best of my knowledge, the information I have provided in this employment application is true and correct.*",
+    "key": "certifyTruthfulApplication",
+    "sensitive": false
+  },
+  {
+    "label": "What are your personal pronouns? *",
+    "key": "personalPronouns",
+    "sensitive": false
+  },
+  {
+    "label": "Sexual Orientation*",
+    "key": "sexualOrientation",
+    "sensitive": true
+  },
+  {
+    "label": "Are you Hispanic/Latinx?*",
+    "key": "hispanicLatinx",
+    "sensitive": true
+  },
+  {
+    "label": "By checking this box, I agree to allow PlayStation Global to retain my data for future opportunities for employment for up to 730 days after the conclusion of consideration of my current application for employment.",
+    "key": "retentionConsent",
+    "sensitive": false
+  },
+  {
+    "label": "By checking this box, I consent to PlayStation Global collecting, storing, and processing my responses to the demographic data surveys above.*",
+    "key": "demographicDataConsent",
+    "sensitive": false
+  },
+  {
+    "label": "Location (City)",
+    "key": "locationCity",
+    "sensitive": false
+  },
+  {
+    "label": "School",
+    "key": "educationSchool",
+    "sensitive": false
+  },
+  {
+    "label": "Degree",
+    "key": "educationDegree",
+    "sensitive": false
+  },
+  {
+    "label": "Discipline",
+    "key": "educationDiscipline",
+    "sensitive": false
+  },
+  {
+    "label": "How did you hear about Mixpanel as an Employer?*",
+    "key": "currentEmployer",
+    "sensitive": false
+  },
+  {
+    "label": "Are you currently authorized to work in the country outlined for this job (e.g. H-1B status)?*",
+    "key": "workAuthorization",
+    "sensitive": true
+  },
+  {
+    "label": "Do you consider yourself a member of the Lesbian, Gay, Bisexual, Transgender, Queer/Questioning Community?",
+    "key": "gender",
+    "sensitive": true
+  },
+  {
+    "label": "Are you Hispanic/Latino?",
+    "key": "hispanicLatinx",
+    "sensitive": true
+  },
+  {
+    "label": "Disability Status",
+    "key": "disability",
+    "sensitive": true
+  },
+  {
+    "label": "By checking this box, I consent to Mixpanel collecting, storing, and processing my responses to the demographic data surveys above.",
+    "key": "demographicDataConsent",
+    "sensitive": false
+  },
+  {
+    "label": "How did you hear about Mixpanel as an Employer?*",
+    "key": "howDidYouHear",
+    "sensitive": false
+  },
+  {
+    "label": "Please acknowledge that you've read and understand Mixpanel's Recruitment Privacy Policy*",
+    "key": "recruitmentPrivacyPolicyAcknowledgement",
+    "sensitive": false
+  },
+  {
+    "label": "Have you interviewed with Mixpanel in the past six months to a year?*",
+    "key": "recentlyInterviewedWithCompany",
+    "sensitive": false
+  },
+  {
+    "label": "Do you consider yourself a member of the Lesbian, Gay, Bisexual, Transgender, Queer/Questioning Community?",
+    "key": "lgbtq",
+    "sensitive": true
+  },
+  {
+    "label": "Pronouns (the pronouns you use)",
+    "key": "personalPronouns",
+    "sensitive": false
+  },
+  {
+    "label": "Please identify your race",
+    "key": "ethnicity",
+    "sensitive": true
+  },
+  {
+    "label": "Are you legally authorized to work in the United States for any US employer now and in the future?*",
+    "key": "currentEmployer",
+    "sensitive": false
+  },
+  {
+    "label": "Will you now or in the future require sponsorship for employment in the United States?*",
+    "key": "sponsorship",
+    "sensitive": true
+  },
+  {
+    "label": "ACKNOWLEDGMENT OF RECEIPT AND REVIEW I acknowledge that I received a copy of Axon’s Prohibited Possessor Questionnaire (“Questionnaire”) and that I read it, understood it, and answered the questions truthfully and accurately. I understand that Axon has the maximum discretion permitted by law to interpret, administer, change, modify, or delete this Questionnaire at any time with or without notice. I understand that neither this Questionnaire nor any other communication by a recruiter, hiring manager, supervisor, manager, Axon’s People Operations, or any other Axon employee, whether oral or written, is intended in any way to create a contract of employment. I understand that Axon will keep this information secure and confidential and will not use any such information for any unlawful purpose or in any unlawful way. Finally, I again represent that all the information provided herein is truthful and accurate.*",
+    "key": "certifyTruthfulApplication",
+    "sensitive": false
+  },
+  {
+    "label": "Are you an alien who has been admitted to the United States under a nonimmigrant visa? (i.e. H-1B, TN, F1)*",
+    "key": "sponsorship",
+    "sensitive": true
+  },
+  {
+    "label": "Are you subject to a court order, including a Military Protection Order issued by a military judge or magistrate, restraining you from harassing, stalking, or threatening your child or an intimate partner or child of such partner?*",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "Are you under indictment or information in any court for a felony, or any other crime for which the judge could imprison you for more than one year, or are you a current member of the military who has been charged with violation(s) of the Uniform Code of Military Justice and whose charge(s) have been referred to a general court-martial?*",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "Have you ever been convicted in any court of a misdemeanor crime of domestic violence, or are you or have you ever been a member of the military and been convicted of a crime that included, as an element, the use of force against a person as identified in the instructions?*",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "Have you ever been convicted in any court, including a military court, of a felony, or any other crime for which the judge could have imprisoned you for more than one year, even if you received a shorter sentence including probation?*",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "What city do you currently reside in?*",
+    "key": "locationCity",
+    "sensitive": false
+  },
+  {
+    "label": "Are you Hispanic/Latino?*",
+    "key": "hispanicLatinx",
+    "sensitive": true
+  },
+  {
+    "label": "Veteran Status*",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "Disability Status*",
+    "key": "disability",
+    "sensitive": true
+  },
+  {
+    "label": "Are you legally authorized to work in the United States for any US employer now and in the future?*",
+    "key": "workAuthorizationAnyEmployer",
+    "sensitive": true
+  },
+  {
+    "label": "Can you provide verification of both your identity and authorization to work in the United States, to the extent required by law?*",
+    "key": "identityWorkAuthorizationVerification",
+    "sensitive": true
+  },
+  {
+    "label": "Are you at least 18 years of age?*",
+    "key": "age18OrOlder",
+    "sensitive": true
+  },
+  {
+    "label": "Based on the below information, would you meet the requirements for a deemed export license in order to access EAR - controlled technology?*",
+    "key": "deemedExportLicenseEligible",
+    "sensitive": true
+  },
+  {
+    "label": "Do you have any contractual obligations, agreements, relationships, or commitments to another person or entity that would impact, impede or interfere with your ability to join Axon?*",
+    "key": "conflictingObligations",
+    "sensitive": true
+  },
+  {
+    "label": "Are you a fugitive from justice?*",
+    "key": "fugitiveFromJustice",
+    "sensitive": true
+  },
+  {
+    "label": "Are you an alien illegally or unlawfully in the United States?*",
+    "key": "unlawfullyInUnitedStates",
+    "sensitive": true
+  },
+  {
+    "label": "Are you an unlawful user of, or addicted to, marijuana or any depressant, stimulant, narcotic drug, or any other controlled substance? *",
+    "key": "unlawfulControlledSubstanceUser",
+    "sensitive": true
+  },
+  {
+    "label": "Federal Firearms Licensee Employee Accessor Questionnaire * Acknowledge Acknowledge",
+    "key": "firearmsQuestionnaireAcknowledgement",
+    "sensitive": true
+  },
+  {
+    "label": "Have you ever been adjudicated as a mental defective OR have you ever been committed to a mental institution?*",
+    "key": "adjudicatedMentalDefectiveOrCommitted",
+    "sensitive": true
+  },
+  {
+    "label": "Have you ever been discharged from the Armed Forces under dishonorable conditions?*",
+    "key": "dishonorableMilitaryDischarge",
+    "sensitive": true
+  },
+  {
+    "label": "Have you ever renounced your United States citizenship?*",
+    "key": "renouncedUsCitizenship",
+    "sensitive": true
+  },
+  {
+    "label": "This role requires working onsite in our Seattle office Tuesday through Friday. Are you able to commit to working in the office four days per week?*",
+    "key": "onsiteSeattleFourDays",
+    "sensitive": false
+  },
+  {
+    "label": "Please identify your race*",
+    "key": "ethnicity",
+    "sensitive": true
+  },
+  {
+    "label": "ACKNOWLEDGMENT OF RECEIPT AND REVIEW I acknowledge that I received a copy of Axon’s Prohibited Possessor Questionnaire (“Questionnaire”) and that I read it, understood it, and answered the questions truthfully and accurately. I understand that Axon has the maximum discretion permitted by law to interpret, administer, change, modify, or delete this Questionnaire at any time with or without notice. I understand that neither this Questionnaire nor any other communication by a recruiter, hiring manager, supervisor, manager, Axon’s People Operations, or any other Axon employee, whether oral or written, is intended in any way to create a contract of employment. I understand that Axon will keep this information secure and confidential and will not use any such information for any unlawful purpose or in any unlawful way. Finally, I again represent that all the information provided herein is truthful and accurate.*",
+    "key": "prohibitedPossessorQuestionnaireAcknowledgement",
+    "sensitive": false
+  },
+  {
+    "label": "Legal Full Name",
+    "key": "fullName",
+    "sensitive": false
+  },
+  {
+    "label": "How did you hear about this job?",
+    "key": "howDidYouHear",
+    "sensitive": false
+  },
+  {
+    "label": "Yes, I am a veteran or active member",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "No, I am not a veteran or active member",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "Hispanic, Latinx or of Spanish Origin",
+    "key": "hispanicLatinx",
+    "sensitive": true
+  },
+  {
+    "label": "Queer",
+    "key": "lgbtq",
+    "sensitive": true
+  },
+  {
+    "label": "Lesbian",
+    "key": "lgbtq",
+    "sensitive": true
+  },
+  {
+    "label": "Gay Gay",
+    "key": "lgbtq",
+    "sensitive": true
+  },
+  {
+    "label": "Bisexual and/or pansexual",
+    "key": "lgbtq",
+    "sensitive": true
+  },
+  {
+    "label": "Woman",
+    "key": "genderIdentity",
+    "sensitive": true
+  },
+  {
+    "label": "Heterosexual",
+    "key": "sexualOrientation",
+    "sensitive": true
+  },
+  {
+    "label": "Autofill from resume",
+    "key": "resume",
+    "sensitive": false
+  },
+  {
+    "label": "Do you need visa sponsorship?",
+    "key": "sponsorship",
+    "sensitive": true
+  },
+  {
+    "label": "If you don't currently live within 50 miles of our San Francisco or Seattle hubs, are you willing to relocate?",
+    "key": "hybridRelocation",
+    "sensitive": false
+  },
+  {
+    "label": "Are you a veteran or active member of the United States Armed Forces?",
+    "key": "veteran",
+    "sensitive": true
+  },
+  {
+    "label": "Do you identify as transgender?",
+    "key": "gender",
+    "sensitive": true
+  },
+  {
+    "label": "Do you have a disability or chronic condition (physical, visual, auditory, cognitive, mental, emotional, or other) that substantially limits one or more of your major life activities, including mobility, communication (seeing, hearing, speaking), and learning?",
+    "key": "educationDiscipline",
+    "sensitive": false
+  },
+  {
+    "label": "Do you identify as transgender?",
+    "key": "lgbtq",
+    "sensitive": true
+  },
+  {
+    "label": "Are you authorized to be employed in the United States?",
+    "key": "workAuthorization",
+    "sensitive": true
+  },
+  {
+    "label": "Do you currently live within 50 miles of our San Francisco or Seattle hubs?",
+    "key": "hybridRelocation",
+    "sensitive": false
+  },
+  {
+    "label": "South Asian",
+    "key": "demographicOption",
+    "sensitive": true
+  },
+  {
+    "label": "Do you have a disability or chronic condition (physical, visual, auditory, cognitive, mental, emotional, or other) that substantially limits one or more of your major life activities, including mobility, communication (seeing, hearing, speaking), and learning?",
+    "key": "disability",
+    "sensitive": true
+  },
+  {
+    "label": "If you don't currently live within 80 km of our Berlin hub, are you willing to relocate?",
+    "key": "hybridRelocation",
+    "sensitive": false
+  },
+  {
+    "label": "Woman",
+    "key": "demographicOption",
+    "sensitive": true
+  },
+  {
+    "label": "Are you located in the European Union?",
+    "key": "locatedInEU",
+    "sensitive": false
+  }
+]

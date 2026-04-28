@@ -23,6 +23,16 @@ Documented in `Specs/FIX.md`. Key findings:
 2. **Medium term (2–3 hrs):** Replace the if-else chain with a declarative rule table. Priority becomes explicit; cross-rule conflicts become impossible to miss.
 3. **Follow-up (1 hr):** Store `radioName` on extracted Ashby groups so `clickAshbyButtonGroup` can target them directly instead of re-scanning all divs.
 
+## 2026-04-28 07:45 AM PDT
+
+- **Structural Fixes Completed (FIX.md):**
+    - **Declarative Mapping:** Refactored `lib/answerPlan.js` into a `RULES` table. This resolved the "major life activities" regex conflict and made mapping deterministic.
+    - **Robust Unit Testing:** Refactored `scripts/test-answer-plan.js` to use **Mock Profile/Answers** and **Virtual Fields**. Mapping can now be verified in milliseconds without any browser data or dry-run artifacts.
+    - **Ashby Reliability:** Updated `ashby.js` to sync `radioName` from extraction to filling. This eliminates "group not found" errors by using stable DOM attributes for radio button selection.
+- **Mapping Enhancements:**
+    - **Synonym Support:** Added "Female/Woman" and "Male/Man" synonyms to demographic checkbox logic to ensure correct mapping even when profile labels differ from form labels.
+    - **EU Location:** Added a rule to automatically answer "No" to "Are you located in the European Union?".
+-  
 ## 2026-04-28 06:45 AM PDT
 
 - **Investigation: Checkbox and Radio Button Failures**

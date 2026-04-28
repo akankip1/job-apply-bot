@@ -87,9 +87,15 @@ For new ATS adapters:
 
 ### Verification Workflow
 
-For narrow mapping changes, run syntax checks and replay the saved schema with `createAnswerPlan` if useful.
+For mapping changes in `lib/answerPlan.js`, always run the regression test first. This catches regex mismatches and priority conflicts in milliseconds without a browser:
 
-For adapter or fill behavior changes, run a dry run and inspect the latest artifacts. If the job is first in `jobs.txt`, use:
+```powershell
+# Run against the latest saved schema from a dry run
+node scripts/test-answer-plan.js "runs\<latest_run_dir>\job-1-step-0-form-schema.json"
+```
+
+For adapter or fill behavior changes, run a dry run and inspect the latest artifacts.
+ If the job is first in `jobs.txt`, use:
 
 ```powershell
 npm.cmd run dry-run -- --limit 1
@@ -115,12 +121,18 @@ The dry run is successful only if:
 Run before committing:
 
 ```powershell
+# Syntax checks
 node --check apply.js
 node --check lib\profile.js
 node --check lib\formSchema.js
 node --check lib\answerPlan.js
 node --check platforms\ashby.js
 node --check platforms\greenhouse.js
+
+# Logic check (Mapping)
+node scripts/test-answer-plan.js "runs\<latest>\job-1-step-0-form-schema.json"
+
+# Integration check (Browser)
 npm.cmd run dry-run
 ```
 

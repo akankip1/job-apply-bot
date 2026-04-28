@@ -81,6 +81,7 @@ async function extractAshbyButtonGroups(frame, existingCount) {
         selector: group.id ? `[id="${group.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]` : (group.getAttribute("data-testid") ? `[data-testid="${group.getAttribute("data-testid")}"]` : null),
         id,
         name: "",
+        radioName: isRadio ? controls[0].getAttribute("name") : null,
         label,
         normalizedLabel: label.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
         type: "radio",
@@ -137,9 +138,33 @@ async function clickAshbyButtonGroup(page, decision, log) {
   const isWantedYes = /^(yes|true)$/i.test(wanted);
   const matchers = isWantedYes ? yesMatchers : noMatchers;
 
-  const questionPrefix = decision.label.slice(0, 50);
-
   for (const frame of page.frames()) {
+    // If we have a stable radio name from extraction, use it directly.
+    if (decision.radioName) {
+      const inputs = frame.locator(`input[type="radio"][name="${decision.radioName}"]`);
+      const count = await inputs.count().catch(() => 0);
+      if (count > 0) {
+        for (const matcher of matchers) {
+          for (let i = 0; i < count; i++) {
+            const input = inputs.nth(i);
+            const meta = await input.evaluate(el => ({
+              value: el.value || "",
+              labelText: (el.labels && el.labels[0] ? el.labels[0].innerText : "").trim()
+            })).catch(() => ({ value: "", labelText: "" }));
+            
+            if (matcher.test(meta.value) || matcher.test(meta.labelText)) {
+              if (await input.isVisible().catch(() => false)) {
+                await input.click({ force: true, timeout: 3000 });
+                log("ashby_radio_selected_by_name", { fieldId: decision.fieldId, answer: wanted, name: decision.radioName });
+                return { filled: true };
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const questionPrefix = decision.label.slice(0, 50);
     // Ashby often uses fieldsets with legends or divs with labels.
     const allDivs = frame.locator("div, fieldset, [role='radiogroup'], [role='group']");
     const divCount = await allDivs.count().catch(() => 0);
