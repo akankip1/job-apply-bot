@@ -36,13 +36,11 @@
 ## Resume
 
 ```text
-file:///C:/Users/john/Downloads/John_Doe_Resume.pdf
 ```
 
 ## Cover Letter
 
 ```text
-file:///C:/Users/john/Downloads/John_Doe_Cover_Letter.pdf
 ```
 
 ---

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Runs `node --check` on every .js source file in the project.
-// Exit code 1 if any file fails.
+// Runs `node --check` on every .js source file, then validates all people/ profiles.
+// Exit code 1 if any check fails.
 
-const { execFileSync } = require("child_process");
+const { execFileSync, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -30,4 +30,23 @@ for (const file of files) {
 }
 
 console.log(failures ? `\n${failures} file(s) failed.` : `\nAll ${files.length} files OK.`);
+
+const peopleDir = path.join(ROOT, "people");
+if (fs.existsSync(peopleDir)) {
+  const people = fs.readdirSync(peopleDir).filter((name) =>
+    fs.statSync(path.join(peopleDir, name)).isDirectory()
+  );
+  if (people.length) {
+    console.log("\nProfile validation:");
+    for (const person of people) {
+      console.log(`\n  [${person}]`);
+      const result = spawnSync(process.execPath, ["scripts/validate-profile.js", "--person", person], {
+        cwd: ROOT,
+        stdio: "inherit",
+      });
+      if (result.status !== 0) failures++;
+    }
+  }
+}
+
 process.exitCode = failures ? 1 : 0;

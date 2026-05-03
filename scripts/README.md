@@ -66,6 +66,18 @@ node scripts/build-reference.js
 node scripts/build-reference.js --person john-doe
 ```
 
+## `validate-profile.js`
+
+Validates a person's profile directory before running the bot. Checks config.json structure, required profile fields, resume path existence, answers.json completeness, and jobs.txt.
+
+```bash
+node scripts/validate-profile.js --person john-doe
+# or via npm
+npm run validate -- --person john-doe
+```
+
+Prints `✓`/`✗` per check and exits with code 1 if any errors are found.
+
 ## `build-embeddings.js`
 
 Precomputes vector embeddings for `lib/reference-questions.json`. Required after harvesting new references.

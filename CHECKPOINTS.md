@@ -1,5 +1,54 @@
 # Checkpoints
 
+## 2026-05-02 18:30 — Per-Person Parameterization, LLM Removal & Build Validation
+
+### Per-Person Structure
+- All applicant data now lives under `people/<name>/` — `profile.md`, `answers.json`, `config.json`, `jobs.txt`, `runs/`, `.browser-profile`
+- `--person <name>` flag is required on all scripts; no default fallback
+- `lib/config.js` added: `loadConfig(slug)` reads `people/<slug>/config.json` with shape `{ nearbyCities, optionAliases }`
+- `people/john-doe/` added as a sample/template profile
+
+### LLM Removed
+- Removed `pipeline`, `getGenerator`, `MODEL_NAME`, `buildPrompt` from `lib/llmAnswerPlanner.js`
+- Hardcoded `NEARBY_CITY_GROUPS` constant and Florida/Seattle hack removed
+- Replaced with `resolveLocationAnswer(field, profile)` reading `profile.nearbyCities` from per-person config
+- `profile.nearbyCities` is attached in `apply.js` from `CONFIG.nearbyCities`
+
+### Option Aliases Moved to Config
+- Removed hardcoded Binghamton/Amrita/ECE entries from `platforms/greenhouse.js`
+- `optionCandidates(answer, decision, aliases)` now reads `aliases[decision.key]` from config
+- `fill(page, plan, log, options = {})` signature updated across greenhouse/ashby/generic
+- `apply.js` passes `{ aliases: CONFIG.optionAliases }` to all `adapter.fill()` calls
+- `educationAliases` key removed from `answers.json` and `DEFAULT_ANSWERS`
+
+### Ashby Global State Removed
+- Deleted `globallyFilledKeys` Set and `fillIfNew()` wrapper from `platforms/ashby.js`
+- Resume upload now checks file input value before uploading; button groups use existing `isChecked` checks
+
+### Scripts Converted (PS1 → Node.js)
+- `scripts/mark-run-results.js` and `scripts/add-tabs-to-jobs.js` already existed; `.ps1` files deleted
+- `scripts/test-answer-plan.js` updated: accepts `--person <name>` to load real profile/answers
+- `scripts/build-reference.js` updated: `--person` scopes to one person; without it scans all `people/*/runs/`
+
+### Build Validation
+- `scripts/validate-profile.js` added: checks config.json types/keys, profile required fields, resume path existence, answers.json completeness, jobs.txt
+- `npm run build` now runs syntax checks + profile validation for every directory in `people/`
+- `npm run validate -- --person <name>` for standalone profile check
+- `npm run mark-results` and `npm run add-jobs` added to package.json
+
+### Cleanup
+- Screenshot functionality removed from `apply.js`
+- Legacy multi-candidate profile path search removed from `lib/profile.js`
+- `CLAUDE.md` added with token-efficiency rules for AI coding agents
+- `.gitignore` updated: `people/*/.browser-profile`, `people/*/runs/`, `people/sravya/`
+- All docs updated: README, AGENTS.md, DEVELOPMENT.md, scripts/README.md
+
+### Status
+- `npm run build` passes: 21 files OK, all tracked profiles validated
+- `node scripts/test-answer-plan.js` passes with mock data
+
+---
+
 ## 2026-04-28 (latest session) - LLM Factual Answer Planning Added
 
 - **Planner Update:** Added `lib/answerPolicy.js` and `lib/llmAnswerPlanner.js` to let the answer-planning layer reason about factual geography questions after explicit rules and reusable answers fail.
