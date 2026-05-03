@@ -291,6 +291,7 @@ async function fillWorkableRadioGroup(page, decision, log) {
   if (!wantedYes && !wantedNo) return { filled: false, reason: "choice_not_found" };
 
   const wantedTokens = wantedYes ? ["yes", "true"] : ["no", "false"];
+  const oppositeTokens = wantedYes ? ["no", "false"] : ["yes", "true"];
   const wantedValue = wantedYes ? "true" : "false";
   const labelText = decision.label.replace(/^\*\s*/, "").trim();
   const groupCandidates = [];
@@ -317,9 +318,10 @@ async function fillWorkableRadioGroup(page, decision, log) {
   async function readOptionMeta(locator) {
     return locator.evaluate((el) => {
       const collectText = (node) => (node && typeof node.textContent === "string" ? node.textContent.trim() : "");
-      const parts = [];
-      const push = (value) => {
-        if (value && typeof value === "string") parts.push(value.trim());
+      const directParts = [];
+      const contextParts = [];
+      const push = (bucket, value) => {
+        if (value && typeof value === "string") bucket.push(value.trim());
       };
       const input = el.matches?.("input[type='radio']") ? el : el.querySelector?.("input[type='radio']") || null;
       const target = input || el;
@@ -327,15 +329,17 @@ async function fillWorkableRadioGroup(page, decision, log) {
       const parentText = collectText(el.parentElement);
       const wrappingLabelText = collectText(el.closest?.("label"));
       const externalLabelText = id ? collectText(document.querySelector(`label[for="${id}"]`)) : "";
-      push(el.innerText || "");
-      push(el.textContent || "");
-      push(el.getAttribute?.("aria-label") || "");
-      push(target?.value || "");
-      push(target?.getAttribute?.("aria-label") || "");
-      push(wrappingLabelText);
-      push(externalLabelText);
-      push(parentText);
-      const combined = parts.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+      push(directParts, el.innerText || "");
+      push(directParts, el.textContent || "");
+      push(directParts, el.getAttribute?.("aria-label") || "");
+      push(directParts, target?.value || "");
+      push(directParts, target?.getAttribute?.("aria-label") || "");
+      push(directParts, wrappingLabelText);
+      push(directParts, externalLabelText);
+      push(contextParts, parentText);
+      const directCombined = directParts.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+      const contextCombined = contextParts.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+      const combined = `${directCombined} ${contextCombined}`.trim();
       const selected = (
         el.getAttribute?.("aria-checked") === "true" ||
         target?.getAttribute?.("aria-checked") === "true" ||
@@ -346,6 +350,8 @@ async function fillWorkableRadioGroup(page, decision, log) {
       );
       return {
         combined,
+        directCombined,
+        contextCombined,
         text: (el.innerText || el.textContent || "").trim(),
         value: String(target?.value || ""),
         ariaLabel: el.getAttribute?.("aria-label") || target?.getAttribute?.("aria-label") || "",
@@ -353,6 +359,8 @@ async function fillWorkableRadioGroup(page, decision, log) {
       };
     }).catch(() => ({
       combined: "",
+      directCombined: "",
+      contextCombined: "",
       text: "",
       value: "",
       ariaLabel: "",
@@ -360,8 +368,23 @@ async function fillWorkableRadioGroup(page, decision, log) {
     }));
   }
 
+  function containsAny(haystack, tokens) {
+    const words = new Set(String(haystack || "").toLowerCase().match(/[a-z0-9]+/g) || []);
+    return tokens.some((token) => words.has(token));
+  }
+
   function matchesWanted(meta) {
-    return wantedTokens.some((token) => meta.combined.includes(token));
+    const directHasWanted = containsAny(meta.directCombined, wantedTokens);
+    const directHasOpposite = containsAny(meta.directCombined, oppositeTokens);
+    if (directHasWanted || directHasOpposite) {
+      return directHasWanted && !directHasOpposite;
+    }
+    const contextHasWanted = containsAny(meta.contextCombined, wantedTokens);
+    const contextHasOpposite = containsAny(meta.contextCombined, oppositeTokens);
+    if (contextHasWanted || contextHasOpposite) {
+      return contextHasWanted && !contextHasOpposite;
+    }
+    return false;
   }
 
   async function verifySelection(group) {
@@ -391,6 +414,8 @@ async function fillWorkableRadioGroup(page, decision, log) {
       optionText: meta.text,
       optionValue: meta.value,
       optionAriaLabel: meta.ariaLabel,
+      directCombined: meta.directCombined,
+      contextCombined: meta.contextCombined,
       combined: meta.combined,
       selected: meta.selected,
     });
@@ -405,7 +430,6 @@ async function fillWorkableRadioGroup(page, decision, log) {
       return { filled: true };
     }
     log("workable_radio_click_not_verified", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer, option: meta.text || meta.value });
-    break;
   }
 
   const fallbackInput = matchingGroup.locator(`input[type='radio'][value='${wantedValue}']`).first();
