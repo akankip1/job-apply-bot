@@ -1,0 +1,193 @@
+- generic [ref=e4]:
+  - generic [ref=e6]:
+    - banner [ref=e7]:
+      - generic [ref=e8]:
+        - link "ENFOS, Inc." [ref=e10] [cursor=pointer]:
+          - /url: /enfos-inc/
+          - img "ENFOS, Inc." [ref=e11]
+        - heading "Senior UI/UX Engineer 2026" [level=1] [ref=e12]
+        - generic [ref=e13]:
+          - paragraph [ref=e14]:
+            - strong [ref=e16]: On-site
+            - text: ·Full time
+          - generic [ref=e19]:
+            - generic [ref=e20]: Durham,
+            - generic [ref=e21]: North Carolina,
+            - text: United States
+    - generic [ref=e22]:
+      - navigation [ref=e24]:
+        - link "Overview" [ref=e26] [cursor=pointer]:
+          - /url: /enfos-inc/j/25873065C9/
+        - link "Application" [ref=e27]:
+          - /url: /enfos-inc/j/25873065C9/apply/
+      - progressbar
+      - main [ref=e28]:
+        - generic [ref=e29]:
+          - generic [ref=e32]:
+            - generic [ref=e33]:
+              - generic [ref=e34]:
+                - img [ref=e35]
+                - strong [ref=e37]: Autofill application
+              - paragraph [ref=e38]: "Save time by importing your resume in one of the following formats: .pdf, .doc, .docx, .odt, or .rtf."
+            - button "Import resume from" [ref=e42] [cursor=pointer]:
+              - generic [ref=e43]:
+                - generic [ref=e44]: Import resume from
+                - img
+          - generic [ref=e45]: "* Required fields"
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - heading "Personal information" [level=2] [ref=e48]
+              - button "Clear Personal information" [disabled] [ref=e49]:
+                - img [ref=e50]
+                - text: Clear
+            - generic [ref=e52]:
+              - generic [ref=e54]:
+                - generic [ref=e55]:
+                  - strong [ref=e57]: "*"
+                  - strong [ref=e60]: First name
+                - textbox "First name" [ref=e63]
+              - generic [ref=e65]:
+                - generic [ref=e66]:
+                  - strong [ref=e68]: "*"
+                  - strong [ref=e71]: Last name
+                - textbox "Last name" [ref=e74]
+              - generic [ref=e76]:
+                - generic [ref=e77]:
+                  - strong [ref=e79]: "*"
+                  - strong [ref=e82]: Email
+                - textbox "Email" [ref=e85]
+              - generic [ref=e86]:
+                - generic [ref=e87]:
+                  - generic [ref=e88]:
+                    - strong [ref=e90]: "*"
+                    - strong [ref=e93]: Phone
+                  - generic [ref=e97] [cursor=pointer]:
+                    - combobox "Telephone country code" [ref=e99]:
+                      - generic [ref=e101]: "+1"
+                    - textbox "* Phone" [ref=e103]
+                - generic [ref=e106]: The hiring team may use this number to contact you about this job.
+          - generic [ref=e107]:
+            - generic [ref=e108]:
+              - heading "Profile" [level=2] [ref=e109]
+              - button "Clear Profile" [disabled] [ref=e110]:
+                - img [ref=e111]
+                - text: Clear
+            - generic [ref=e116]:
+              - generic [ref=e117]:
+                - strong [ref=e119]: "*"
+                - generic [ref=e120]:
+                  - strong [ref=e122]: Resume
+                  - img [ref=e124]
+              - generic [ref=e127]:
+                - img [ref=e132] [cursor=pointer]
+                - generic [ref=e134]:
+                  - button "Choose file" [ref=e135] [cursor=pointer]
+                  - text: or drag and drop here
+                - button "Resume Choose file" [ref=e136]
+          - generic [ref=e137]:
+            - generic [ref=e138]:
+              - heading "Details" [level=2] [ref=e139]
+              - button "Clear Details" [disabled] [ref=e140]:
+                - img [ref=e141]
+                - text: Clear
+            - generic [ref=e143]:
+              - generic [ref=e145]:
+                - generic [ref=e147]:
+                  - strong [ref=e149]: Cover letter
+                  - text: (Optional)
+                - textbox "Cover letter" [ref=e152]
+              - generic [ref=e154]:
+                - generic [ref=e155]:
+                  - strong [ref=e157]: "*"
+                  - strong [ref=e160]: Do you currently live near the Raleigh-Durham-Chapel Hill Area?
+                - radiogroup "Do you currently live near the Raleigh-Durham-Chapel Hill Area?" [ref=e161]:
+                  - radio "Do you currently live near the Raleigh-Durham-Chapel Hill Area? YES" [ref=e162] [cursor=pointer]:
+                    - generic [ref=e163]:
+                      - radio [ref=e164]
+                      - generic [ref=e166]:
+                        - img
+                        - generic [ref=e167]: "YES"
+                  - radio "Do you currently live near the Raleigh-Durham-Chapel Hill Area? NO" [ref=e168] [cursor=pointer]:
+                    - generic [ref=e169]:
+                      - radio [ref=e170]
+                      - generic [ref=e172]:
+                        - img
+                        - generic [ref=e173]: "NO"
+              - generic [ref=e175]:
+                - generic [ref=e176]:
+                  - strong [ref=e178]: "*"
+                  - strong [ref=e181]: Are you willing to commute to the office in Durham, NC 5x a week?
+                - radiogroup "Are you willing to commute to the office in Durham, NC 5x a week?" [ref=e182]:
+                  - radio "Are you willing to commute to the office in Durham, NC 5x a week? YES" [ref=e183] [cursor=pointer]:
+                    - generic [ref=e184]:
+                      - radio [ref=e185]
+                      - generic [ref=e187]:
+                        - img
+                        - generic [ref=e188]: "YES"
+                  - radio "Are you willing to commute to the office in Durham, NC 5x a week? NO" [ref=e189] [cursor=pointer]:
+                    - generic [ref=e190]:
+                      - radio [ref=e191]
+                      - generic [ref=e193]:
+                        - img
+                        - generic [ref=e194]: "NO"
+              - generic [ref=e196]:
+                - generic [ref=e197]:
+                  - strong [ref=e199]: "*"
+                  - strong [ref=e202]: Do you currently have eligibility to work in the US?
+                - radiogroup "Do you currently have eligibility to work in the US?" [ref=e203]:
+                  - radio "Do you currently have eligibility to work in the US? YES" [ref=e204] [cursor=pointer]:
+                    - generic [ref=e205]:
+                      - radio [ref=e206]
+                      - generic [ref=e208]:
+                        - img
+                        - generic [ref=e209]: "YES"
+                  - radio "Do you currently have eligibility to work in the US? NO" [ref=e210] [cursor=pointer]:
+                    - generic [ref=e211]:
+                      - radio [ref=e212]
+                      - generic [ref=e214]:
+                        - img
+                        - generic [ref=e215]: "NO"
+              - generic [ref=e217]:
+                - generic [ref=e218]:
+                  - strong [ref=e220]: "*"
+                  - strong [ref=e223]: Will you now or in the future require sponsorship to work in the US? (Please answer truthfully.)
+                - radiogroup "Will you now or in the future require sponsorship to work in the US? (Please answer truthfully.)" [ref=e224]:
+                  - radio "Will you now or in the future require sponsorship to work in the US? (Please answer truthfully.) YES" [ref=e225] [cursor=pointer]:
+                    - generic [ref=e226]:
+                      - radio [ref=e227]
+                      - generic [ref=e229]:
+                        - img
+                        - generic [ref=e230]: "YES"
+                  - radio "Will you now or in the future require sponsorship to work in the US? (Please answer truthfully.) NO" [ref=e231] [cursor=pointer]:
+                    - generic [ref=e232]:
+                      - radio [ref=e233]
+                      - generic [ref=e235]:
+                        - img
+                        - generic [ref=e236]: "NO"
+              - generic [ref=e238]:
+                - generic [ref=e239]:
+                  - strong [ref=e241]: "*"
+                  - strong [ref=e244]: What is the basis of your current work authorization (e.g., U.S. Citizen, Permanent Resident, H-1B, F-1 OPT, J-1, Other)
+                - textbox "What is the basis of your current work authorization (e.g., U.S. Citizen, Permanent Resident, H-1B, F-1 OPT, J-1, Other)" [ref=e247]
+          - button "Submit application" [ref=e248] [cursor=pointer]
+  - contentinfo [ref=e259]:
+    - generic [ref=e260]:
+      - link "View website" [ref=e262] [cursor=pointer]:
+        - /url: http://www.enfos.com
+      - generic [ref=e263]:
+        - link "View all jobs" [ref=e264] [cursor=pointer]:
+          - /url: /enfos-inc/
+        - link "Help" [ref=e265] [cursor=pointer]:
+          - /url: https://jobseekers.workable.com/hc/en
+          - text: Help
+          - img [ref=e266]
+    - generic [ref=e268]:
+      - link "Accessibility" [ref=e270] [cursor=pointer]:
+        - /url: https://workable.com/web-accessibility-statement
+        - text: Accessibility
+        - img [ref=e271]
+      - button "Cookie settings" [ref=e274] [cursor=pointer]
+      - generic [ref=e275]:
+        - text: Powered by
+        - link "Workable" [ref=e276] [cursor=pointer]:
+          - /url: https://jobs.workable.com/?utm_campaign=careers_page&utm_content=careers_page&utm_medium=feature&utm_source=careers_page

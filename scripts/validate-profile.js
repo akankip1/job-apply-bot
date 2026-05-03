@@ -24,6 +24,7 @@ const EXPECTED_ANSWER_KEYS = [
   "prohibited_possessor_questionnaire_acknowledgement",
   "recently_interviewed_with_company",
   "work_authorization_any_us_employer_now_future",
+  "work_authorization_basis",
   "identity_and_work_authorization_verification",
   "age_18_or_older",
   "deemed_export_license_eligible",

@@ -21,16 +21,21 @@ The bot follows this flow:
 - `lib/answers.js`: reusable answer loading
 - `lib/formSchema.js`: field extraction
 - `lib/answerPlan.js`: field-to-answer mapping
-- `lib/llmAnswerPlanner.js`: rule-based location and fallback answer resolution
+- `lib/embedClassify.js`: semantic label classification support
 - `platforms/index.js`: adapter selection
 - `platforms/ashby.js`: Ashby-specific behavior
 - `platforms/greenhouse.js`: Greenhouse-specific behavior
 - `platforms/generic.js`: fallback adapter
+- `scripts/setup-profile.js`: scaffold a new `people/<name>/` profile
+- `scripts/validate-profile.js`: validate profile, answers, and config structure
+- `scripts/add-tabs-to-jobs.js`: merge clipboard job URLs into `jobs.txt`
+- `scripts/mark-run-results.js`: move processed URLs into applied/failed/skipped queues
 
 ## Current Adapter Support
 
 - Greenhouse: active
 - Ashby: active
+- Workable: active
 - Generic fallback: basic
 - Lever, Workday: not implemented yet
 
@@ -130,12 +135,12 @@ node scripts/test-answer-plan.js "people/john-doe/runs/<timestamp>/job-1-step-0-
 For adapter or fill behavior changes, run a dry run and inspect the latest artifacts:
 
 ```bash
-npm run dry-run -- --person john-doe --limit 1
+node apply.js --person john-doe --limit 1
 ```
 
 The dry run is successful only if:
 
-- required planned fields are filled or selected in the screenshot
+- required planned fields are filled or selected in the live form and reflected in the saved logs/artifacts
 - `manualReview` contains only intentionally manual fields
 - `log.jsonl` has no `field_fill_failed` or unexpected `value_not_persisted`
 - the final status is `dry_run_completed`
@@ -154,13 +159,13 @@ Run before committing:
 
 ```bash
 # Syntax checks
-npm run build
+node scripts/check-syntax.js
 
 # Logic check (Mapping)
 node scripts/test-answer-plan.js --person john-doe
 
 # Integration check (Browser)
-npm run dry-run -- --person john-doe --limit 1
+node apply.js --person john-doe --limit 1
 ```
 
 Review the latest run folder before using submit mode.

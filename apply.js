@@ -85,6 +85,35 @@ async function loadPage(page, url) {
   return false;
 }
 
+async function dismissCookieBanner(page) {
+  const selectors = [
+    "#onetrust-accept-btn-handler",
+    "#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
+    "button:has-text('Accept all')",
+    "button:has-text('Accept cookies')",
+    "button:has-text('Accept')",
+    "[data-testid*='cookie'] button",
+    ".cookie-consent button",
+  ];
+
+  for (const frame of page.frames()) {
+    for (const selector of selectors) {
+      const locator = frame.locator(selector);
+      const count = await locator.count().catch(() => 0);
+      for (let i = 0; i < count; i += 1) {
+        const candidate = locator.nth(i);
+        const visible = await candidate.isVisible({ timeout: 2000 }).catch(() => false);
+        if (!visible) continue;
+        await candidate.click({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(500);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function blockerStatus(blockers) {
   if (blockers.some((blocker) => /resume/.test(blocker.reason))) return FINAL_STATUS.RESUME_MISSING;
   if (blockers.some((blocker) => /sensitive|legal|human_verification/.test(blocker.reason))) return FINAL_STATUS.SENSITIVE;
@@ -236,6 +265,12 @@ async function processJob(context, url, profile, answers, jobIndex) {
     if (!loaded) {
       jobState.status = FINAL_STATUS.PAGE_LOAD;
       return jobState.status;
+    }
+
+    if (await dismissCookieBanner(page)) {
+      log("cookie_banner_dismissed", { jobIndex });
+    } else {
+      log("no_cookie_banner", { jobIndex });
     }
 
     for (let step = 0; step < 8; step += 1) {
