@@ -1,0 +1,3 @@
+# Add one job application URL per line.
+# Example:
+# https://jobs.ashbyhq.com/example-company/job-id

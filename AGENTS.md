@@ -12,8 +12,8 @@ Mandates and safety guidelines for AI coding agents working in this project.
 - **No Hardcoding:** Never hardcode applicant-specific data in source files.
 
 ### 2. Source of Truth
-- **Profile:** `Specs/sravya_narayana_application_profile.md`
-- **Reusable Answers:** `answers.json`
+- **Profile:** `people/<name>/profile.md`
+- **Reusable Answers:** `people/<name>/answers.json`
 - **Technical Reference:** `DEVELOPMENT.md`
 
 ### 3. Context & Efficiency

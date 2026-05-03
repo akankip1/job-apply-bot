@@ -44,6 +44,11 @@ function getStableKey(decision) {
   return `id:${decision.fieldId}`;
 }
 
+function isAutofillResumeDecision(decision) {
+  const label = normalizeText(decision.label || "");
+  return /autofill|parse|parsing/.test(label) && /resume|cv/.test(label);
+}
+
 async function extractAshbyButtonGroups(frame, existingCount) {
   return frame.evaluate((startIndex) => {
     function getGroupLabel(group) {
@@ -322,9 +327,8 @@ async function fillTextAndVerify(page, decision, log) {
   return { filled: false, reason: "value_not_persisted" };
 }
 
-const globallyFilledKeys = new Set();
-
-async function fill(page, plan, log) {
+async function fill(page, plan, log, answers = {}) {
+  const filledKeys = new Set();
   const specialDecisions = new Set();
   const results = [];
 
@@ -344,7 +348,7 @@ async function fill(page, plan, log) {
 
   const fillIfNew = async (decision, fillFn) => {
       const key = getStableKey(decision);
-      if (globallyFilledKeys.has(key)) {
+      if (filledKeys.has(key)) {
           // Requirement 4: Targeted log for skipped resume upload
           if (key.startsWith("category:resume")) {
               log("ashby_resume_upload_already_done_skipped", { fieldId: decision.fieldId, label: decision.label, category: key });
@@ -354,7 +358,7 @@ async function fill(page, plan, log) {
           return { filled: true, skipped: true };
       }
       const res = await fillFn();
-      if (res.filled) globallyFilledKeys.add(key);
+      if (res.filled) filledKeys.add(key);
       return res;
   };
 
@@ -368,8 +372,13 @@ async function fill(page, plan, log) {
   // Filter remaining plan to skip already filled categories before greenhouse
   const filteredRemainingDecisions = plan.decisions.filter((decision) => {
       if (specialDecisions.has(decision.fieldId)) return false;
+      if (isAutofillResumeDecision(decision)) {
+          results.push({ fieldId: decision.fieldId, filled: true, skipped: true });
+          log("ashby_resume_autofill_skipped", { fieldId: decision.fieldId, label: decision.label });
+          return false;
+      }
       const key = getStableKey(decision);
-      if (globallyFilledKeys.has(key)) {
+      if (filledKeys.has(key)) {
           if (key.startsWith("category:resume")) {
               log("ashby_resume_upload_already_done_skipped", { fieldId: decision.fieldId, label: decision.label, category: key });
           }
@@ -382,11 +391,11 @@ async function fill(page, plan, log) {
   const remainingPlan = { ...plan, decisions: filteredRemainingDecisions };
   
   // 2. Greenhouse-handled (Resume etc)
-  const ghResults = await greenhouse.fill(page, remainingPlan, log);
+  const ghResults = await greenhouse.fill(page, remainingPlan, log, answers);
   for (const res of ghResults) {
       if (res.filled) {
           const decision = remainingPlan.decisions.find(d => d.fieldId === res.fieldId);
-          if (decision) globallyFilledKeys.add(getStableKey(decision));
+          if (decision) filledKeys.add(getStableKey(decision));
       }
   }
   results.push(...ghResults);

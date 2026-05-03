@@ -188,7 +188,7 @@ async function clickChoice(frame, decision) {
   return false;
 }
 
-async function fillDecision(page, decision, log) {
+async function fillDecision(page, decision, log, answers = {}) {
   if (!decision.safeToFill) return { filled: false, reason: decision.reason };
   const frame = frameFor(page, decision.frameUrl);
   if (!frame) return { filled: false, reason: "frame_not_found" };
@@ -215,7 +215,7 @@ async function fillDecision(page, decision, log) {
       (COMBOBOX_LABEL_RE.test(label) || /^question_/.test(decision.fieldId) || /^\d+$/.test(decision.fieldId));
 
     if (isComboboxCandidate && !(isAshbyFrame && /how did you hear/.test(label))) {
-      if (await fillComboboxLikeField(frame, locator, decision.answer, log, decision)) {
+      if (await fillComboboxLikeField(frame, locator, decision.answer, log, decision, answers)) {
         return { filled: true };
       }
       if (requiresOptionSelection(decision, label)) {
@@ -231,17 +231,17 @@ async function fillDecision(page, decision, log) {
   }
 }
 
-async function fillComboboxLikeField(frame, locator, answer, log, decision) {
+async function fillComboboxLikeField(frame, locator, answer, log, decision, answers = {}) {
   // Greenhouse frequently renders selects as text inputs backed by a popup.
   // Treat planned answers as candidates, then select an actual visible option
   // when one exists. Plain text acceptance is only a fallback.
   const mustSelectOption = requiresOptionSelection(decision, normalizeText(decision.label));
   if (decision.key === "locationCity") {
-    const selected = await fillLocationAutocomplete(frame, locator, answer, log, decision);
+    const selected = await fillLocationAutocomplete(frame, locator, answer, log, decision, answers);
     if (selected) return true;
   }
 
-  const candidates = optionCandidates(answer, decision);
+  const candidates = optionCandidates(answer, decision, answers);
   if (!candidates.length) return false;
 
   await locator.click({ timeout: 3000 }).catch(() => {});
@@ -320,10 +320,8 @@ async function clickVisibleOption(frame, wanted, decision, log, strategy) {
   return false;
 }
 
-async function fillLocationAutocomplete(frame, locator, answer, log, decision) {
-  // Location fields generally require selecting a suggestion object, not just
-  // leaving text in the input. Type the city and choose the first matching row.
-  const candidates = optionCandidates(answer, decision);
+async function fillLocationAutocomplete(frame, locator, answer, log, decision, answers = {}) {
+  const candidates = optionCandidates(answer, decision, answers);
   const city = candidates.find((candidate) => !candidate.includes(",")) || String(answer || "").split(",")[0].trim();
   if (!city) return false;
 
@@ -352,14 +350,14 @@ async function fillLocationAutocomplete(frame, locator, answer, log, decision) {
   return false;
 }
 
-function optionCandidates(answer, decision) {
+function optionCandidates(answer, decision, answers = {}) {
   const original = String(answer || "").trim();
   if (!original) return [];
   const label = normalizeText(decision.label);
   const key = decision.key || "";
   const candidates = [original];
+  const educationAliases = (answers && typeof answers.educationAliases === "object") ? answers.educationAliases : {};
 
-  // The profile can be more specific than the form's available choices.
   if (key === "ethnicity" || /ethnic|race/.test(label)) {
     if (/south asian/i.test(original)) candidates.unshift("Asian");
   }
@@ -389,14 +387,11 @@ function optionCandidates(answer, decision) {
     if (/bachelor/i.test(original)) candidates.push("Bachelor's Degree", "Bachelors", "Bachelor");
   }
 
-  if (key === "educationSchool" || /school|university|college/.test(label)) {
-    if (/binghamton/i.test(original)) candidates.push("Binghamton University", "State University of New York at Binghamton");
-    if (/amrita/i.test(original)) candidates.push("Amrita University", "Amrita Vishwa Vidyapeetham", "Other");
-  }
-
-  if (key === "educationDiscipline" || /discipline|field of study|major/.test(label)) {
-    if (/electronics.*communication|communication.*electronics/i.test(original)) {
-      candidates.push("Electronics", "Electronics and Communication Engineering", "Computer Engineering");
+  if (key === "educationSchool" || key === "educationDiscipline" || /school|university|college|discipline|field of study|major/.test(label)) {
+    for (const [pattern, aliasGroup] of Object.entries(educationAliases)) {
+      if (Array.isArray(aliasGroup) && new RegExp(pattern, "i").test(original)) {
+        candidates.push(...aliasGroup);
+      }
     }
   }
 
@@ -422,7 +417,7 @@ function optionCandidates(answer, decision) {
   return [...new Set(candidates.filter(Boolean))];
 }
 
-async function fill(page, plan, log) {
+async function fill(page, plan, log, answers = {}) {
   const results = [];
   for (const decision of plan.decisions) {
     if (!decision.safeToFill) {
@@ -430,7 +425,7 @@ async function fill(page, plan, log) {
       results.push({ fieldId: decision.fieldId, filled: false, reason: decision.reason });
       continue;
     }
-    const result = await fillDecision(page, decision, log);
+    const result = await fillDecision(page, decision, log, answers);
     if (result.filled) {
       log("field_filled", { fieldId: decision.fieldId, key: decision.key, label: decision.label, sensitive: decision.sensitive });
     } else {

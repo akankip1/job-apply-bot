@@ -2,15 +2,15 @@
   "how_did_you_hear": "Careers website",
   "previously_employed_by_company": "No",
   "comfortable_with_hybrid_or_relocation": "Yes",
-  "relocation_assistance": "Yes",
+  "relocation_assistance": "No",
   "related_to_company_employee": "No",
-  "personal_pronouns": "she/her",
-  "sexual_orientation": "Heterosexual",
+  "personal_pronouns": "he/him",
+  "sexual_orientation": "",
   "hispanic_latinx": "No",
   "certify_truthful_application": "Yes",
   "demographic_data_consent": "Yes",
   "retention_consent": "Yes",
-  "desired_total_compensation": "200000",
+  "desired_total_compensation": "150000",
   "recruitment_privacy_policy_acknowledgement": "Yes",
   "prohibited_possessor_questionnaire_acknowledgement": "Acknowledge",
   "recently_interviewed_with_company": "No",
@@ -26,5 +26,8 @@
   "adjudicated_mental_defective_or_committed": "No",
   "dishonorable_military_discharge": "No",
   "renounced_us_citizenship": "No",
-  "onsite_seattle_four_days": "Yes"
+  "onsite_seattle_four_days": "",
+  "educationAliases": {
+    "State University": ["State University", "State U"]
+  }
 }

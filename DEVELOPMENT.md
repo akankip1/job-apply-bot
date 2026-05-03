@@ -49,7 +49,7 @@ Use the artifact that failed to decide where the change belongs:
 - If the plan is correct but the page remains blank or unselected, fix filling behavior in `platforms/<ats>.js`.
 - If a field needs an applicant-specific value, fill it only from an explicit approved source: profile data or `answers.json`. Do not infer it from nearby wording.
 
-Do not hardcode applicant data in source files. Profile-derived answers belong in `Specs/sravya_narayana_application_profile.md`; reusable manually approved answers belong in `answers.json`.
+Do not hardcode applicant data in source files. Profile-derived answers belong in `people/<name>/profile.md`; reusable manually approved answers belong in `people/<name>/answers.json`.
 
 ### Hybrid Answer Planning (LLMification)
 

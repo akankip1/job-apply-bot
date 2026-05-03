@@ -12,11 +12,12 @@ const ROOT = __dirname;
 const SUBMIT_MODE = process.argv.includes("--submit");
 const KEEP_OPEN = process.argv.includes("--keep-open") || !SUBMIT_MODE;
 const JOB_LIMIT = parseLimitArg(process.argv.slice(2));
+const PERSON = parsePersonArg(process.argv.slice(2));
+const DATA_DIR = PERSON ? path.join(ROOT, "people", PERSON) : ROOT;
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-");
-const RUN_DIR = path.join(ROOT, "runs", RUN_ID);
-const SCREENSHOT_DIR = path.join(RUN_DIR, "screenshots");
+const RUN_DIR = path.join(DATA_DIR, "runs", RUN_ID);
 const LOG_FILE = path.join(RUN_DIR, "log.jsonl");
-const USER_DATA_DIR = path.join(ROOT, ".browser-profile");
+const USER_DATA_DIR = path.join(DATA_DIR, ".browser-profile");
 
 const FINAL_STATUS = {
   DRY_RUN: "dry_run_completed",
@@ -40,16 +41,17 @@ function parseLimitArg(args) {
   return limit;
 }
 
-fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+function parsePersonArg(args) {
+  const idx = args.indexOf("--person");
+  if (idx === -1) return null;
+  const name = args[idx + 1];
+  if (!name || name.startsWith("--")) throw new Error("--person requires a name argument.");
+  return name;
+}
+
+fs.mkdirSync(RUN_DIR, { recursive: true });
 const log = createLogger(LOG_FILE, SUBMIT_MODE);
 
-async function saveScreenshot(page, jobIndex, label) {
-  const filename = `${String(jobIndex).padStart(2, "0")}-${Date.now()}-${label}.png`;
-  const filePath = path.join(SCREENSHOT_DIR, filename);
-  await page.screenshot({ path: filePath, fullPage: true });
-  log("screenshot_saved", { label, filePath });
-  return filePath;
-}
 
 async function hasHumanVerification(page) {
   for (const frame of page.frames()) {
@@ -142,7 +144,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
 
   const resumeBlocker = validateResume(plan);
   const manualBlockers = validatePlan(plan);
-  const fillResults = await adapter.fill(page, plan, log);
+  const fillResults = await adapter.fill(page, plan, log, answers);
   
   // Track successful fills in history
   for (const res of fillResults) {
@@ -196,7 +198,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
         planPath: dynamicPlanPath,
       });
 
-      const dynamicFillResults = await adapter.fill(page, dynamicPlan, log);
+      const dynamicFillResults = await adapter.fill(page, dynamicPlan, log, answers);
       
       for (const res of dynamicFillResults) {
         if (res.filled) {
@@ -236,7 +238,6 @@ async function processJob(context, url, profile, answers, jobIndex) {
 
     for (let step = 0; step < 8; step += 1) {
       log("page_visited", { jobIndex, step, url: page.url() });
-      await saveScreenshot(page, jobIndex, `step-${step}-opened`);
 
       if (await hasHumanVerification(page)) {
         log("human_verification_possible", { jobIndex, step, url: page.url() });
@@ -245,7 +246,6 @@ async function processJob(context, url, profile, answers, jobIndex) {
       const adapter = detectAdapter(page);
       log("adapter_selected", { jobIndex, step, adapter: adapter.name });
       const result = await extractPlanAndFill(page, adapter, profile, answers, jobIndex, step, fillHistory);
-      await saveScreenshot(page, jobIndex, `step-${step}-filled`);
 
       if (result.blockers.length) {
         jobState.blockers.push(...result.blockers);
@@ -254,7 +254,6 @@ async function processJob(context, url, profile, answers, jobIndex) {
 
       const submitButton = await adapter.submitButton(page);
       if (submitButton) {
-        await saveScreenshot(page, jobIndex, "before-final-submission");
         if (!SUBMIT_MODE) {
           jobState.status = FINAL_STATUS.DRY_RUN;
           log("submission_skipped_dry_run", { buttonText: submitButton.text, frameUrl: submitButton.frameUrl });
@@ -262,7 +261,6 @@ async function processJob(context, url, profile, answers, jobIndex) {
         }
         await submitButton.locator.click({ timeout: 5000 });
         await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
-        await saveScreenshot(page, jobIndex, "after-submission");
         jobState.status = FINAL_STATUS.SUBMITTED;
         log("submitted", { confirmationUrl: page.url() });
         break;
@@ -280,7 +278,6 @@ async function processJob(context, url, profile, answers, jobIndex) {
 
     if (jobState.blockers.length) {
       jobState.status = blockerStatus(jobState.blockers);
-      await saveScreenshot(page, jobIndex, "blocked-manual-review");
       log("job_blocked", { blockers: jobState.blockers });
     } else if (jobState.status === FINAL_STATUS.DRY_RUN) {
       log("dry_run_verified", { message: "All required fields filled or planned. No blockers." });
@@ -298,11 +295,13 @@ async function processJob(context, url, profile, answers, jobIndex) {
 }
 
 async function main() {
-  const profile = loadProfile(ROOT);
-  const { answersPath, answers } = loadAnswers(ROOT);
-  const allJobs = readJobs(ROOT);
+  const profile = loadProfile(DATA_DIR);
+  const { answersPath, answers } = loadAnswers(DATA_DIR);
+  const allJobs = readJobs(DATA_DIR);
   const jobs = JOB_LIMIT ? allJobs.slice(0, JOB_LIMIT) : allJobs;
   log("run_started", {
+    person: PERSON || null,
+    dataDir: DATA_DIR,
     profilePath: profile.profilePath,
     answersPath,
     jobsAvailable: allJobs.length,

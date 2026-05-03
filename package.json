@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "node scripts/check-syntax.js",
     "dry-run": "node apply.js",
     "submit": "node apply.js --submit"
   },
