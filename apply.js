@@ -13,7 +13,7 @@ const SUBMIT_MODE = process.argv.includes("--submit");
 const KEEP_OPEN = process.argv.includes("--keep-open") || !SUBMIT_MODE;
 const JOB_LIMIT = parseLimitArg(process.argv.slice(2));
 const PERSON = parsePersonArg(process.argv.slice(2));
-const DATA_DIR = PERSON ? path.join(ROOT, "people", PERSON) : ROOT;
+const DATA_DIR = path.join(ROOT, "people", PERSON);
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-");
 const RUN_DIR = path.join(DATA_DIR, "runs", RUN_ID);
 const LOG_FILE = path.join(RUN_DIR, "log.jsonl");
@@ -43,7 +43,7 @@ function parseLimitArg(args) {
 
 function parsePersonArg(args) {
   const idx = args.indexOf("--person");
-  if (idx === -1) return null;
+  if (idx === -1) throw new Error("--person <name> is required.");
   const name = args[idx + 1];
   if (!name || name.startsWith("--")) throw new Error("--person requires a name argument.");
   return name;

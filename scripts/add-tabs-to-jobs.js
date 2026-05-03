@@ -11,7 +11,10 @@ const URL_RE = /https?:\/\/(?:(?!https?:\/\/)[^\s,"<>])+/g;
 
 function parseArgs(args) {
   const idx = args.indexOf("--person");
-  return idx !== -1 && args[idx + 1] ? args[idx + 1] : null;
+  if (idx === -1) throw new Error("--person <name> is required.");
+  const name = args[idx + 1];
+  if (!name || name.startsWith("--")) throw new Error("--person requires a name argument.");
+  return name;
 }
 
 function readClipboard() {
@@ -34,7 +37,7 @@ function readClipboard() {
 }
 
 const person = parseArgs(process.argv.slice(2));
-const DATA_DIR = person ? path.join(ROOT, "people", person) : ROOT;
+const DATA_DIR = path.join(ROOT, "people", person);
 const jobsFile = path.join(DATA_DIR, "jobs.txt");
 
 if (!fs.existsSync(jobsFile)) {

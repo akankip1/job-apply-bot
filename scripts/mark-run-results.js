@@ -14,6 +14,7 @@ function parseArgs(args) {
     if (args[i] === "--person" && args[i + 1]) result.person = args[++i];
     if (args[i] === "--status-file" && args[i + 1]) result.statusFile = args[++i];
   }
+  if (!result.person) throw new Error("--person <name> is required.");
   return result;
 }
 
@@ -55,7 +56,7 @@ function findLatestStatusFile(dataDir) {
 }
 
 const { person, statusFile: argStatusFile } = parseArgs(process.argv.slice(2));
-const DATA_DIR = person ? path.join(ROOT, "people", person) : ROOT;
+const DATA_DIR = path.join(ROOT, "people", person);
 
 const statusFile = argStatusFile || findLatestStatusFile(DATA_DIR);
 if (!statusFile || !fs.existsSync(statusFile)) {
