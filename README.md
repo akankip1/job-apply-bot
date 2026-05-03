@@ -10,7 +10,7 @@ Each applicant has their own directory under `people/<name>/`:
 
 ```
 people/
-  sravya/
+  john-doe/
     profile.md        ← resume and personal details
     answers.json      ← reusable answers + education aliases
     jobs.txt          ← URLs to apply to
@@ -43,13 +43,13 @@ Pass `--person <name>` to scope the run to that directory.
 
 ```powershell
 # Dry-run for a specific person (fills form, skips submit)
-npm.cmd run dry-run -- --person sravya
+npm.cmd run dry-run -- --person john-doe
 
 # Submit for a specific person
-npm.cmd run submit -- --person sravya
+npm.cmd run submit -- --person john-doe
 
 # Limit to the first N jobs
-npm.cmd run dry-run -- --person sravya --limit 1
+npm.cmd run dry-run -- --person john-doe --limit 1
 
 # No --person flag → reads from the project root (legacy behavior)
 npm.cmd run dry-run
@@ -61,10 +61,10 @@ After a run, mark results to clear the queue and track progress.
 
 ```powershell
 # Mark results for a specific person
-node scripts/mark-run-results.js --person sravya
+node scripts/mark-run-results.js --person john-doe
 
 # Add URLs from clipboard to a person's jobs.txt
-node scripts/add-tabs-to-jobs.js --person sravya
+node scripts/add-tabs-to-jobs.js --person john-doe
 ```
 
 The marking script moves processed URLs from `jobs.txt` into:

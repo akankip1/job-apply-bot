@@ -35,4 +35,4 @@ Mandates and safety guidelines for AI coding agents working in this project.
 Before finishing a task, ensure:
 1. `node --check` passes for all modified files.
 2. `node scripts/test-answer-plan.js` passes for mapping changes.
-3. A successful dry run is verified via `log.jsonl` and screenshots.
+3. A successful dry run is verified via `log.jsonl` (no `field_fill_failed`, final status `dry_run_completed`).

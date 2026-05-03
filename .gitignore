@@ -1,7 +1,13 @@
 node_modules/
-runs/
-.browser-profile/
 .env
 *.log
 .idea
-Specs/
+Specs/*.md
+
+# Run artifacts and browser session data (per-person)
+people/*/.browser-profile
+people/*/runs/
+
+# Root-level legacy locations (pre-per-person structure)
+runs/
+.browser-profile/

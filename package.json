@@ -6,7 +6,9 @@
   "scripts": {
     "build": "node scripts/check-syntax.js",
     "dry-run": "node apply.js",
-    "submit": "node apply.js --submit"
+    "submit": "node apply.js --submit",
+    "mark-results": "node scripts/mark-run-results.js",
+    "add-jobs": "node scripts/add-tabs-to-jobs.js"
   },
   "keywords": [],
   "author": "",

@@ -4,22 +4,24 @@
 
 The bot follows this flow:
 
-1. Load profile and reusable answers.
+1. Load profile, config, and reusable answers for the given `--person`.
 2. Open a job URL.
 3. Detect the ATS adapter.
 4. Extract a structured form schema.
 5. Build an answer plan.
 6. Fill only approved answers.
-7. Save screenshots and logs.
+7. Save logs and run artifacts.
 8. Submit only in explicit submit mode.
 
 ## Main Files
 
 - `apply.js`: run orchestration
+- `lib/config.js`: per-person config (`nearbyCities`, `optionAliases`)
 - `lib/profile.js`: profile parsing
 - `lib/answers.js`: reusable answer loading
 - `lib/formSchema.js`: field extraction
 - `lib/answerPlan.js`: field-to-answer mapping
+- `lib/llmAnswerPlanner.js`: rule-based location and fallback answer resolution
 - `platforms/index.js`: adapter selection
 - `platforms/ashby.js`: Ashby-specific behavior
 - `platforms/greenhouse.js`: Greenhouse-specific behavior
@@ -34,12 +36,11 @@ The bot follows this flow:
 
 ## Adding or Fixing Fields
 
-Start from the latest `runs\<timestamp>\` folder. For the affected job, inspect:
+Start from the latest run folder `people/<name>/runs/<timestamp>/`. For the affected job, inspect:
 
 - `job-*-form-schema.json`: what the adapter saw in the DOM.
 - `job-*-answer-plan.json`: what answer was planned and whether manual review was required.
 - `log.jsonl`: whether filling succeeded, failed, or a value did not persist.
-- screenshots: whether the browser visually agrees with the log.
 
 Use the artifact that failed to decide where the change belongs:
 
@@ -48,8 +49,9 @@ Use the artifact that failed to decide where the change belongs:
 - If the field label or required state is wrong, update extraction in `lib/formSchema.js` or the specific ATS adapter.
 - If the plan is correct but the page remains blank or unselected, fix filling behavior in `platforms/<ats>.js`.
 - If a field needs an applicant-specific value, fill it only from an explicit approved source: profile data or `answers.json`. Do not infer it from nearby wording.
+- If a dropdown option needs an alias (e.g. a school name in a different format), add it to `optionAliases` in `people/<name>/config.json` keyed by `decision.key`.
 
-Do not hardcode applicant data in source files. Profile-derived answers belong in `people/<name>/profile.md`; reusable manually approved answers belong in `people/<name>/answers.json`.
+Do not hardcode applicant data in source files. Profile-derived answers belong in `people/<name>/profile.md`; reusable manually approved answers belong in `people/<name>/answers.json`; per-person config (location groups, option aliases) belongs in `people/<name>/config.json`.
 
 ### Hybrid Answer Planning (LLMification)
 
@@ -73,9 +75,11 @@ The decision layer (`lib/answerPlan.js`) uses a **Hybrid Multi-Layer Decision Sy
 **Testing Mapping:**
 Always run the regression test after changing rules or references. This catches mapping conflicts in milliseconds:
 
-```powershell
-# Run against the latest saved schema from a dry run
-node scripts/test-answer-plan.js "runs\<latest_run_dir>\job-1-step-0-form-schema.json"
+```bash
+# Run against a saved schema from a dry run
+node scripts/test-answer-plan.js "people/john-doe/runs/<timestamp>/job-1-step-0-form-schema.json"
+# Or run with real profile data
+node scripts/test-answer-plan.js --person john-doe
 ```
 
 ### Classifier Maintenance
@@ -83,11 +87,11 @@ node scripts/test-answer-plan.js "runs\<latest_run_dir>\job-1-step-0-form-schema
 The classifier depends on a precomputed reference set and a local transformer model.
 
 - **Harvesting New References:** If you encounter new form questions, you can "teach" the classifier by harvesting mappings from recent successful dry runs:
-  ```powershell
-  node scripts/build-reference.js
+  ```bash
+  node scripts/build-reference.js --person john-doe
   ```
 - **Building Embeddings:** To precompute the vector representation of the reference questions (required for similarity matching):
-  ```powershell
+  ```bash
   node scripts/build-embeddings.js
   ```
 - **Model Storage:** The `all-MiniLM-L6-v2` model is stored in the local `@xenova/transformers` cache. If you clear `node_modules`, `build-embeddings.js` will re-download it.
@@ -117,16 +121,16 @@ For new ATS adapters:
 
 For mapping changes in `lib/answerPlan.js`, always run the regression test first. This catches regex mismatches and priority conflicts in milliseconds without a browser:
 
-```powershell
-# Run against the latest saved schema from a dry run
-node scripts/test-answer-plan.js "runs\<latest_run_dir>\job-1-step-0-form-schema.json"
+```bash
+node scripts/test-answer-plan.js --person john-doe
+# or against a specific schema
+node scripts/test-answer-plan.js "people/john-doe/runs/<timestamp>/job-1-step-0-form-schema.json"
 ```
 
-For adapter or fill behavior changes, run a dry run and inspect the latest artifacts.
- If the job is first in `jobs.txt`, use:
+For adapter or fill behavior changes, run a dry run and inspect the latest artifacts:
 
-```powershell
-npm.cmd run dry-run -- --limit 1
+```bash
+npm run dry-run -- --person john-doe --limit 1
 ```
 
 The dry run is successful only if:
@@ -148,20 +152,15 @@ The dry run is successful only if:
 
 Run before committing:
 
-```powershell
+```bash
 # Syntax checks
-node --check apply.js
-node --check lib\profile.js
-node --check lib\formSchema.js
-node --check lib\answerPlan.js
-node --check platforms\ashby.js
-node --check platforms\greenhouse.js
+npm run build
 
 # Logic check (Mapping)
-node scripts/test-answer-plan.js "runs\<latest>\job-1-step-0-form-schema.json"
+node scripts/test-answer-plan.js --person john-doe
 
 # Integration check (Browser)
-npm.cmd run dry-run
+npm run dry-run -- --person john-doe --limit 1
 ```
 
 Review the latest run folder before using submit mode.

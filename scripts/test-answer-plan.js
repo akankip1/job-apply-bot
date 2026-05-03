@@ -1,9 +1,17 @@
 const { createAnswerPlan, classifyField } = require("../lib/answerPlan");
 const { loadProfile } = require("../lib/profile");
+const { loadAnswers } = require("../lib/answers");
+const { loadConfig } = require("../lib/config");
 const fs = require("fs");
 const path = require("path");
 
 const root = path.join(__dirname, "..");
+
+function parsePersonArg(args) {
+  const idx = args.indexOf("--person");
+  return idx !== -1 && args[idx + 1] ? args[idx + 1] : null;
+}
+const person = parsePersonArg(process.argv.slice(2));
 
 // --- STATIC MOCK DATA ---
 const mockProfile = {
@@ -40,15 +48,26 @@ const mockAnswers = {
 };
 
 async function runTests() {
-  const schemaPath = process.argv[2];
-  let schema = { fields: [], company: "Unit Test", jobTitle: "Mock Job" };
+  let profile = mockProfile;
+  let answers = mockAnswers;
 
-  if (schemaPath && fs.existsSync(schemaPath)) {
-    schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
+  if (person) {
+    const dataDir = path.join(root, "people", person);
+    const config = loadConfig(person);
+    profile = loadProfile(dataDir);
+    profile.nearbyCities = config.nearbyCities || {};
+    ({ answers } = loadAnswers(dataDir));
+    console.log(`Using real profile for: ${person}\n`);
   }
 
-  // We pass the mock data into createAnswerPlan
-  const plan = await createAnswerPlan(schema, mockProfile, mockAnswers);
+  const schemaArg = process.argv.slice(2).find(a => !a.startsWith("--") && a !== person);
+  let schema = { fields: [], company: "Unit Test", jobTitle: "Mock Job" };
+
+  if (schemaArg && fs.existsSync(schemaArg)) {
+    schema = JSON.parse(fs.readFileSync(schemaArg, "utf8"));
+  }
+
+  const plan = await createAnswerPlan(schema, profile, answers);
 
   let pass = 0;
   let fail = 0;

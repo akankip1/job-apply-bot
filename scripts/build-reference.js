@@ -1,11 +1,30 @@
 const fs = require("fs");
 const path = require("path");
 
-const runsDir = path.join(__dirname, "..", "runs");
+const ROOT = path.join(__dirname, "..");
+
+function parsePersonArg(args) {
+  const idx = args.indexOf("--person");
+  return idx !== -1 && args[idx + 1] ? args[idx + 1] : null;
+}
+const person = parsePersonArg(process.argv.slice(2));
+
+function getRunsDirs() {
+  if (person) {
+    return [path.join(ROOT, "people", person, "runs")];
+  }
+  const peopleDir = path.join(ROOT, "people");
+  if (!fs.existsSync(peopleDir)) return [];
+  return fs.readdirSync(peopleDir)
+    .map(p => path.join(peopleDir, p, "runs"))
+    .filter(d => fs.existsSync(d));
+}
+
+const runsDirs = getRunsDirs();
 const outMap = new Map();
 
-if (!fs.existsSync(runsDir)) {
-  console.error("runs/ directory not found. Run a dry run first.");
+if (!runsDirs.length) {
+  console.error("No runs/ directories found. Run a dry run first.");
   process.exit(0);
 }
 
@@ -36,6 +55,7 @@ function skipRun(run, reason) {
   console.log(`Skipping ${run}: ${reason}`);
 }
 
+for (const runsDir of runsDirs) {
 for (const run of fs.readdirSync(runsDir)) {
   const runPath = path.join(runsDir, run);
   const statusPath = path.join(runPath, "job-status.json");
@@ -101,6 +121,7 @@ for (const run of fs.readdirSync(runsDir)) {
       }
     } catch (e) { console.warn(`Failed to parse ${planPath}: ${e.message}`); }
   }
+}
 }
 
 const out = Array.from(outMap.values()).map(item => ({
