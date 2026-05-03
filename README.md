@@ -8,51 +8,62 @@ The bot reads job URLs from `jobs.txt`, reads the applicant profile, extracts th
 
 Each applicant has their own directory under `people/<name>/`:
 
-```
+```text
 people/
   john-doe/
-    profile.md        ← resume and personal details
-    answers.json      ← reusable answers + education aliases
-    jobs.txt          ← URLs to apply to
+    profile.md        <- resume and personal details
+    answers.json      <- reusable answers
+    config.json       <- nearby city groups and dropdown aliases
+    jobs.txt          <- URLs to apply to
     applied_jobs.txt
     failed_jobs.txt
     skipped_jobs.txt
-    runs/             ← run artifacts
-    .browser-profile/ ← saved browser session
+    runs/             <- run artifacts
+    .browser-profile/ <- saved browser session
 ```
 
 Pass `--person <name>` to scope the run to that directory.
 
 ### Setting up a new person
 
-1. Create `people/<name>/profile.md` with the applicant's resume and personal details.
-2. Create `people/<name>/answers.json` with reusable field answers. Add `educationAliases` for school/discipline dropdown matching:
+1. Run `node scripts/setup-profile.js <name>`.
+2. Fill in `people/<name>/profile.md` with your details.
+3. Fill in `people/<name>/answers.json` with your reusable answers.
+4. Optional: add dropdown aliases and nearby-city groups to `people/<name>/config.json`.
 
 ```json
 {
-  "educationAliases": {
-    "Binghamton": ["Binghamton University", "Binghamton University - SUNY"],
-    "Electronics and Communication": ["ECE", "Electronics and Communication Engineering"]
+  "optionAliases": {
+    "educationSchool": ["Your University Full Name", "Alternate Name"],
+    "locationCity": ["Your City", "Your City, ST"]
+  },
+  "nearbyCities": {
+    "yourcity": ["nearby1", "nearby2"]
   }
 }
 ```
 
-3. Add job URLs to `people/<name>/jobs.txt` (one per line), or use the add-tabs script.
+5. Validate with `node scripts/validate-profile.js --person <name>`.
+6. Add job URLs to `people/<name>/jobs.txt` (one per line), or use the add-tabs script.
+7. Dry run with `node apply.js --person <name> --limit 1`.
 
 ## Commands
 
 ```powershell
+# Scaffold a new person profile
+node scripts/setup-profile.js john-doe
+
 # Dry-run for a specific person (fills form, skips submit)
-npm.cmd run dry-run -- --person john-doe
+node apply.js --person john-doe
 
 # Submit for a specific person
-npm.cmd run submit -- --person john-doe
+node apply.js --person john-doe --submit
 
 # Limit to the first N jobs
-npm.cmd run dry-run -- --person john-doe --limit 1
+node apply.js --person john-doe --limit 1
 
-# No --person flag → reads from the project root (legacy behavior)
-npm.cmd run dry-run
+# Validate a person's profile setup
+node scripts/validate-profile.js --person john-doe
 ```
 
 ## Queue Management
@@ -81,7 +92,6 @@ people/<name>/runs/<timestamp>/
 ```
 
 Important files:
-
 - `log.jsonl`
 - `job-*-form-schema.json`
 - `job-*-answer-plan.json`
@@ -89,7 +99,7 @@ Important files:
 ## Syntax Check
 
 ```powershell
-npm.cmd run build
+node scripts/check-syntax.js
 ```
 
 Runs `node --check` on all source files and reports any syntax errors.
@@ -97,7 +107,7 @@ Runs `node --check` on all source files and reports any syntax errors.
 ## Safety
 
 - Dry-run is the default.
-- Submit requires `npm.cmd run submit`.
+- Submit requires `node apply.js --person <name> --submit`.
 - Unknown required fields block submission.
 - CAPTCHA/human verification is not bypassed.
 - Sensitive answers are only filled from the profile or approved reusable answers.

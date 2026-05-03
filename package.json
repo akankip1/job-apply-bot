@@ -9,6 +9,7 @@
     "submit": "node apply.js --submit",
     "mark-results": "node scripts/mark-run-results.js",
     "add-jobs": "node scripts/add-tabs-to-jobs.js",
+    "setup-profile": "node scripts/setup-profile.js",
     "validate": "node scripts/validate-profile.js"
   },
   "keywords": [],

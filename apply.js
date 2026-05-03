@@ -200,7 +200,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
         planPath: dynamicPlanPath,
       });
 
-      const dynamicFillResults = await adapter.fill(page, dynamicPlan, log, answers);
+      const dynamicFillResults = await adapter.fill(page, dynamicPlan, log, { aliases: CONFIG.optionAliases || {} });
       
       for (const res of dynamicFillResults) {
         if (res.filled) {

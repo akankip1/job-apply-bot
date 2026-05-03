@@ -356,6 +356,8 @@ function optionCandidates(answer, decision, aliases = {}) {
   const label = normalizeText(decision.label);
   const key = decision.key || "";
   const candidates = [original];
+  const keyAliases = aliases[key] || [];
+  candidates.push(...keyAliases);
 
   if (key === "ethnicity" || /ethnic|race/.test(label)) {
     if (/south asian/i.test(original)) candidates.unshift("Asian");
@@ -377,18 +379,9 @@ function optionCandidates(answer, decision, aliases = {}) {
     }
   }
 
-  if (key === "locationCity" || /location city|\bcity\b/.test(label)) {
-    if (/seattle/i.test(original)) candidates.push("Seattle", "Seattle, WA", "Seattle, Washington");
-  }
-
   if (key === "educationDegree" || /degree/.test(label)) {
     if (/master/i.test(original)) candidates.push("Master's Degree", "Masters", "Master");
     if (/bachelor/i.test(original)) candidates.push("Bachelor's Degree", "Bachelors", "Bachelor");
-  }
-
-  if (key === "educationSchool" || key === "educationDiscipline" || /school|university|college|discipline|field of study|major/.test(label)) {
-    const keyAliases = aliases[key] || [];
-    candidates.push(...keyAliases);
   }
 
   if (key === "recruitmentPrivacyPolicyAcknowledgement" || /privacy policy|acknowledge/.test(label)) {

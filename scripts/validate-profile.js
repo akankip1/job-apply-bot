@@ -112,7 +112,9 @@ if (!fs.existsSync(configPath)) {
 // 3. profile.md
 header("profile.md");
 let profile;
+let profileMarkdown = "";
 try {
+  profileMarkdown = fs.readFileSync(path.join(dataDir, "profile.md"), "utf8");
   profile = loadProfile(dataDir);
   pass("exists and parses");
 } catch (e) {
@@ -123,6 +125,13 @@ if (profile) {
   const s = profile.standard;
   for (const [field, val] of [["firstName", s.firstName], ["lastName", s.lastName], ["email", s.email], ["phone", s.phone]]) {
     if (val) pass(field); else fail(field, "empty");
+  }
+  if (!s.location) {
+    fail("location", "empty");
+  } else if (!s.location.includes(",")) {
+    warn("location format", 'expected "City, State, Country"');
+  } else {
+    pass("location");
   }
   if (s.resumePath) {
     if (fs.existsSync(s.resumePath)) pass(`resumePath exists`);
@@ -135,6 +144,16 @@ if (profile) {
     else fail("coverLetterPath exists", s.coverLetterPath);
   } else {
     warn("coverLetterPath", "not set (optional)");
+  }
+  if (/\*\*Title:\*\*/i.test(profileMarkdown)) {
+    pass("work experience title marker");
+  } else {
+    warn("work experience", 'no "**Title:**" found');
+  }
+  if (/\*\*School:\*\*/i.test(profileMarkdown)) {
+    pass("education school marker");
+  } else {
+    warn("education", 'no "**School:**" found');
   }
 }
 
