@@ -86,9 +86,25 @@ async function extractWorkableVirtualFields(frame, baseCount) {
     function groupLabelFor(controls) {
       let container = commonAncestor(controls) || controls[0]?.parentElement;
       while (container) {
-        const heading = container.querySelector("legend, [class*='question'], [class*='label'], [class*='title'], h1, h2, h3, h4, h5, h6, p, span");
+        const directLabelText = clean(
+          Array.from(container.childNodes || [])
+            .filter((node) => node !== controls[0]?.closest('[role="radiogroup"]'))
+            .map((node) => node.innerText || node.textContent || "")
+            .join(" ")
+        );
+        if (directLabelText) {
+          const directLines = directLabelText
+            .split(/\n+/)
+            .map(clean)
+            .filter(Boolean)
+            .filter((line) => !/^(yes|no|true|false|svgs not supported by this browser\.)$/i.test(line));
+          const directCandidate = directLines.find((line) => /[?*]/.test(line) || line.length > 20);
+          if (directCandidate) return directCandidate;
+        }
+
+        const heading = container.querySelector(":scope > legend, :scope > [class*='question'], :scope > [class*='label'], :scope > [class*='title'], :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, :scope > p, :scope > span");
         const headingText = clean(heading ? (heading.innerText || heading.textContent) : "");
-        if (headingText && !/^(yes|no|true|false)$/i.test(headingText)) {
+        if (headingText && !/^(yes|no|true|false|svgs not supported by this browser\.)$/i.test(headingText)) {
           if (/[?*]/.test(headingText) || headingText.length > 20) return headingText;
         }
 
@@ -96,7 +112,7 @@ async function extractWorkableVirtualFields(frame, baseCount) {
           .split(/\n+/)
           .map(clean)
           .filter(Boolean)
-          .filter((line) => !/^(yes|no|true|false)$/i.test(line));
+          .filter((line) => !/^(yes|no|true|false|svgs not supported by this browser\.)$/i.test(line));
         const candidate = lines.find((line) => /[?*]/.test(line) || line.length > 20);
         if (candidate) return candidate;
         container = container.parentElement;
@@ -130,8 +146,7 @@ async function extractWorkableVirtualFields(frame, baseCount) {
       const name = controls[0].getAttribute("name");
       if (!name) continue;
 
-      const ariaLabel = clean(group.getAttribute("aria-label"));
-      const label = ariaLabel || groupLabelFor(controls);
+      const label = groupLabelFor(controls);
       const selector = `[name="${name.replace(/"/g, '\\"')}"]`;
       fields.push({
         fieldId: name,
@@ -271,33 +286,155 @@ async function fillWorkableSelect(page, decision, log, options = {}) {
 
 async function fillWorkableRadioGroup(page, decision, log) {
   const frame = page.mainFrame();
-  const radios = frame.locator(decision.selector || "");
-  const count = await radios.count().catch(() => 0);
-  if (!count) return { filled: false, reason: "choice_not_found" };
-
   const wantedYes = /^(yes|true)$/i.test(String(decision.answer || "").trim());
   const wantedNo = /^(no|false)$/i.test(String(decision.answer || "").trim());
   if (!wantedYes && !wantedNo) return { filled: false, reason: "choice_not_found" };
 
-    const wanted = wantedYes ? /yes/i : /no/i;
-    for (let i = 0; i < count; i += 1) {
-      const radio = radios.nth(i);
-      const meta = await radio.evaluate((el) => {
-        const ownLabel = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
-        let text = (ownLabel ? (ownLabel.innerText || ownLabel.textContent) : (el.value || "")).trim();
-        if (/^true$/i.test(text)) text = "Yes";
-        if (/^false$/i.test(text)) text = "No";
-        return { text, checked: !!el.checked };
-      }).catch(() => ({ text: "", checked: false }));
-    if (!wanted.test(meta.text)) continue;
-    if (meta.checked) return { filled: true };
-    await radio.check({ timeout: 3000 }).catch(async () => {
-      await radio.click({ timeout: 3000, force: true }).catch(() => {});
-    });
-    log("workable_radio_selected", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer, option: meta.text });
-    return { filled: true };
+  const wantedTokens = wantedYes ? ["yes", "true"] : ["no", "false"];
+  const wantedValue = wantedYes ? "true" : "false";
+  const labelText = decision.label.replace(/^\*\s*/, "").trim();
+  const groupCandidates = [];
+  if (decision.selector) {
+    const inputLocator = frame.locator(decision.selector);
+    groupCandidates.push(
+      frame.locator("[role='radiogroup']").filter({ has: inputLocator }).first(),
+      frame.locator("fieldset").filter({ has: inputLocator }).first(),
+      inputLocator.first().locator("xpath=ancestor::*[@role='radiogroup' or self::fieldset or contains(@class,'question') or contains(@class,'Question')][1]").first()
+    );
+  }
+  groupCandidates.push(
+    frame.locator("[role='radiogroup']").filter({ hasText: new RegExp(escapeRegExp(labelText), "i") }).first()
+  );
+
+  let matchingGroup = null;
+  for (const candidate of groupCandidates) {
+    if (await candidate.count().catch(() => 0)) {
+      matchingGroup = candidate;
+      break;
+    }
   }
 
+  async function readOptionMeta(locator) {
+    return locator.evaluate((el) => {
+      const collectText = (node) => (node && typeof node.textContent === "string" ? node.textContent.trim() : "");
+      const parts = [];
+      const push = (value) => {
+        if (value && typeof value === "string") parts.push(value.trim());
+      };
+      const input = el.matches?.("input[type='radio']") ? el : el.querySelector?.("input[type='radio']") || null;
+      const target = input || el;
+      const id = target?.id || el.getAttribute?.("id") || "";
+      const parentText = collectText(el.parentElement);
+      const wrappingLabelText = collectText(el.closest?.("label"));
+      const externalLabelText = id ? collectText(document.querySelector(`label[for="${id}"]`)) : "";
+      push(el.innerText || "");
+      push(el.textContent || "");
+      push(el.getAttribute?.("aria-label") || "");
+      push(target?.value || "");
+      push(target?.getAttribute?.("aria-label") || "");
+      push(wrappingLabelText);
+      push(externalLabelText);
+      push(parentText);
+      const combined = parts.join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+      const selected = (
+        el.getAttribute?.("aria-checked") === "true" ||
+        target?.getAttribute?.("aria-checked") === "true" ||
+        Boolean(target?.checked) ||
+        Boolean(el.checked) ||
+        el.querySelector?.("input[type='radio']:checked") ||
+        el.querySelector?.("[role='radio'][aria-checked='true']")
+      );
+      return {
+        combined,
+        text: (el.innerText || el.textContent || "").trim(),
+        value: String(target?.value || ""),
+        ariaLabel: el.getAttribute?.("aria-label") || target?.getAttribute?.("aria-label") || "",
+        selected: Boolean(selected),
+      };
+    }).catch(() => ({
+      combined: "",
+      text: "",
+      value: "",
+      ariaLabel: "",
+      selected: false,
+    }));
+  }
+
+  function matchesWanted(meta) {
+    return wantedTokens.some((token) => meta.combined.includes(token));
+  }
+
+  async function verifySelection(group) {
+    const selectedCandidates = group.locator("[role='radio'][aria-checked='true'], input[type='radio']:checked, label:has(input[type='radio']:checked)");
+    const count = await selectedCandidates.count().catch(() => 0);
+    for (let i = 0; i < count; i += 1) {
+      const meta = await readOptionMeta(selectedCandidates.nth(i));
+      if (matchesWanted(meta)) return true;
+    }
+    return false;
+  }
+
+  if (!matchingGroup) {
+    log("workable_radio_group_not_found", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer });
+    return { filled: false, reason: "group_not_found" };
+  }
+
+  const options = matchingGroup.locator("[role='radio'], label, button, input[type='radio']");
+  const optionCount = await options.count().catch(() => 0);
+  for (let i = 0; i < optionCount; i += 1) {
+    const option = options.nth(i);
+    const meta = await readOptionMeta(option);
+    log("workable_radio_candidate_inspected", {
+      fieldId: decision.fieldId,
+      label: decision.label,
+      answer: decision.answer,
+      optionText: meta.text,
+      optionValue: meta.value,
+      optionAriaLabel: meta.ariaLabel,
+      combined: meta.combined,
+      selected: meta.selected,
+    });
+    if (!matchesWanted(meta)) continue;
+    if (meta.selected) {
+      log("workable_radio_already_selected", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer, option: meta.text || meta.value });
+      return { filled: true };
+    }
+    await option.click({ timeout: 3000, force: true }).catch(() => {});
+    if (await verifySelection(matchingGroup)) {
+      log("workable_radio_selected", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer, option: meta.text || meta.value });
+      return { filled: true };
+    }
+    log("workable_radio_click_not_verified", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer, option: meta.text || meta.value });
+    break;
+  }
+
+  const fallbackInput = matchingGroup.locator(`input[type='radio'][value='${wantedValue}']`).first();
+  if (await fallbackInput.count().catch(() => 0)) {
+    const fallbackLabel = await fallbackInput.evaluate((input) => {
+      const id = input.id || "";
+      if (id) {
+        const label = document.querySelector(`label[for="${id}"]`);
+        if (label) {
+          label.click();
+          return true;
+        }
+      }
+      const wrappingLabel = input.closest("label");
+      if (wrappingLabel) {
+        wrappingLabel.click();
+        return true;
+      }
+      input.click();
+      return true;
+    }).catch(() => false);
+    if (fallbackLabel && await verifySelection(matchingGroup)) {
+      log("workable_radio_selected", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer, option: wantedValue });
+      return { filled: true };
+    }
+    log("workable_radio_click_not_verified", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer, option: wantedValue });
+  }
+
+  log("workable_radio_choice_not_found", { fieldId: decision.fieldId, label: decision.label, answer: decision.answer });
   return { filled: false, reason: "choice_not_found" };
 }
 
@@ -349,8 +486,8 @@ async function clearWorkableCoverLetterTextarea(page, decision, log) {
 
 async function fill(page, plan, log, options = {}) {
   const special = plan.decisions.filter((decision) =>
-    decision.tag === "workable-combobox" ||
-    decision.tag === "workable-radio-group" ||
+    decision.type === "select" ||
+    decision.type === "radio" ||
     decision.type === "tel" ||
     (decision.key === "coverLetter" && decision.fieldId === "cover_letter")
   );
@@ -368,9 +505,9 @@ async function fill(page, plan, log, options = {}) {
       continue;
     }
     let result;
-    if (decision.tag === "workable-combobox") {
+    if (decision.type === "select") {
       result = await fillWorkableSelect(page, decision, log, options);
-    } else if (decision.tag === "workable-radio-group") {
+    } else if (decision.type === "radio") {
       result = await fillWorkableRadioGroup(page, decision, log);
     } else if (decision.type === "tel") {
       result = await fillWorkablePhone(page, decision, log);
