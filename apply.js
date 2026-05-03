@@ -3,6 +3,7 @@ const path = require("path");
 const { chromium } = require("playwright");
 const { loadProfile } = require("./lib/profile");
 const { loadAnswers } = require("./lib/answers");
+const { loadConfig } = require("./lib/config");
 const { readJobs, writeJson, createLogger } = require("./lib/io");
 const { createAnswerPlan, validatePlan, validateResume } = require("./lib/answerPlan");
 const { detectAdapter } = require("./platforms");
@@ -14,6 +15,7 @@ const KEEP_OPEN = process.argv.includes("--keep-open") || !SUBMIT_MODE;
 const JOB_LIMIT = parseLimitArg(process.argv.slice(2));
 const PERSON = parsePersonArg(process.argv.slice(2));
 const DATA_DIR = path.join(ROOT, "people", PERSON);
+const CONFIG = loadConfig(PERSON);
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-");
 const RUN_DIR = path.join(DATA_DIR, "runs", RUN_ID);
 const LOG_FILE = path.join(RUN_DIR, "log.jsonl");
@@ -144,7 +146,7 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
 
   const resumeBlocker = validateResume(plan);
   const manualBlockers = validatePlan(plan);
-  const fillResults = await adapter.fill(page, plan, log, answers);
+  const fillResults = await adapter.fill(page, plan, log, { aliases: CONFIG.optionAliases || {} });
   
   // Track successful fills in history
   for (const res of fillResults) {
@@ -296,6 +298,7 @@ async function processJob(context, url, profile, answers, jobIndex) {
 
 async function main() {
   const profile = loadProfile(DATA_DIR);
+  profile.nearbyCities = CONFIG.nearbyCities || {};
   const { answersPath, answers } = loadAnswers(DATA_DIR);
   const allJobs = readJobs(DATA_DIR);
   const jobs = JOB_LIMIT ? allJobs.slice(0, JOB_LIMIT) : allJobs;

@@ -327,7 +327,7 @@ async function fillTextAndVerify(page, decision, log) {
   return { filled: false, reason: "value_not_persisted" };
 }
 
-async function fill(page, plan, log, answers = {}) {
+async function fill(page, plan, log, options = {}) {
   const filledKeys = new Set();
   const specialDecisions = new Set();
   const results = [];
@@ -391,7 +391,7 @@ async function fill(page, plan, log, answers = {}) {
   const remainingPlan = { ...plan, decisions: filteredRemainingDecisions };
   
   // 2. Greenhouse-handled (Resume etc)
-  const ghResults = await greenhouse.fill(page, remainingPlan, log, answers);
+  const ghResults = await greenhouse.fill(page, remainingPlan, log, options);
   for (const res of ghResults) {
       if (res.filled) {
           const decision = remainingPlan.decisions.find(d => d.fieldId === res.fieldId);

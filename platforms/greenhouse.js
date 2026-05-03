@@ -188,7 +188,7 @@ async function clickChoice(frame, decision) {
   return false;
 }
 
-async function fillDecision(page, decision, log, answers = {}) {
+async function fillDecision(page, decision, log, aliases = {}) {
   if (!decision.safeToFill) return { filled: false, reason: decision.reason };
   const frame = frameFor(page, decision.frameUrl);
   if (!frame) return { filled: false, reason: "frame_not_found" };
@@ -215,7 +215,7 @@ async function fillDecision(page, decision, log, answers = {}) {
       (COMBOBOX_LABEL_RE.test(label) || /^question_/.test(decision.fieldId) || /^\d+$/.test(decision.fieldId));
 
     if (isComboboxCandidate && !(isAshbyFrame && /how did you hear/.test(label))) {
-      if (await fillComboboxLikeField(frame, locator, decision.answer, log, decision, answers)) {
+      if (await fillComboboxLikeField(frame, locator, decision.answer, log, decision, aliases)) {
         return { filled: true };
       }
       if (requiresOptionSelection(decision, label)) {
@@ -231,17 +231,17 @@ async function fillDecision(page, decision, log, answers = {}) {
   }
 }
 
-async function fillComboboxLikeField(frame, locator, answer, log, decision, answers = {}) {
+async function fillComboboxLikeField(frame, locator, answer, log, decision, aliases = {}) {
   // Greenhouse frequently renders selects as text inputs backed by a popup.
   // Treat planned answers as candidates, then select an actual visible option
   // when one exists. Plain text acceptance is only a fallback.
   const mustSelectOption = requiresOptionSelection(decision, normalizeText(decision.label));
   if (decision.key === "locationCity") {
-    const selected = await fillLocationAutocomplete(frame, locator, answer, log, decision, answers);
+    const selected = await fillLocationAutocomplete(frame, locator, answer, log, decision, aliases);
     if (selected) return true;
   }
 
-  const candidates = optionCandidates(answer, decision, answers);
+  const candidates = optionCandidates(answer, decision, aliases);
   if (!candidates.length) return false;
 
   await locator.click({ timeout: 3000 }).catch(() => {});
@@ -320,8 +320,8 @@ async function clickVisibleOption(frame, wanted, decision, log, strategy) {
   return false;
 }
 
-async function fillLocationAutocomplete(frame, locator, answer, log, decision, answers = {}) {
-  const candidates = optionCandidates(answer, decision, answers);
+async function fillLocationAutocomplete(frame, locator, answer, log, decision, aliases = {}) {
+  const candidates = optionCandidates(answer, decision, aliases);
   const city = candidates.find((candidate) => !candidate.includes(",")) || String(answer || "").split(",")[0].trim();
   if (!city) return false;
 
@@ -350,13 +350,12 @@ async function fillLocationAutocomplete(frame, locator, answer, log, decision, a
   return false;
 }
 
-function optionCandidates(answer, decision, answers = {}) {
+function optionCandidates(answer, decision, aliases = {}) {
   const original = String(answer || "").trim();
   if (!original) return [];
   const label = normalizeText(decision.label);
   const key = decision.key || "";
   const candidates = [original];
-  const educationAliases = (answers && typeof answers.educationAliases === "object") ? answers.educationAliases : {};
 
   if (key === "ethnicity" || /ethnic|race/.test(label)) {
     if (/south asian/i.test(original)) candidates.unshift("Asian");
@@ -388,11 +387,8 @@ function optionCandidates(answer, decision, answers = {}) {
   }
 
   if (key === "educationSchool" || key === "educationDiscipline" || /school|university|college|discipline|field of study|major/.test(label)) {
-    for (const [pattern, aliasGroup] of Object.entries(educationAliases)) {
-      if (Array.isArray(aliasGroup) && new RegExp(pattern, "i").test(original)) {
-        candidates.push(...aliasGroup);
-      }
-    }
+    const keyAliases = aliases[key] || [];
+    candidates.push(...keyAliases);
   }
 
   if (key === "recruitmentPrivacyPolicyAcknowledgement" || /privacy policy|acknowledge/.test(label)) {
@@ -417,7 +413,8 @@ function optionCandidates(answer, decision, answers = {}) {
   return [...new Set(candidates.filter(Boolean))];
 }
 
-async function fill(page, plan, log, answers = {}) {
+async function fill(page, plan, log, options = {}) {
+  const aliases = options.aliases || {};
   const results = [];
   for (const decision of plan.decisions) {
     if (!decision.safeToFill) {
@@ -425,7 +422,7 @@ async function fill(page, plan, log, answers = {}) {
       results.push({ fieldId: decision.fieldId, filled: false, reason: decision.reason });
       continue;
     }
-    const result = await fillDecision(page, decision, log, answers);
+    const result = await fillDecision(page, decision, log, aliases);
     if (result.filled) {
       log("field_filled", { fieldId: decision.fieldId, key: decision.key, label: decision.label, sensitive: decision.sensitive });
     } else {
