@@ -4,6 +4,15 @@ Local Playwright-based job application helper.
 
 The bot reads job URLs from `jobs.txt`, reads the applicant profile, extracts the application form, creates an answer plan, fills approved fields, saves logs/screenshots, and stops before submit unless explicitly run in submit mode.
 
+## Supported Platforms
+
+Current platform handlers under `platforms/`:
+
+- `Ashby`
+- `Greenhouse`
+- `Workable`
+- `Generic` fallback handler for sites that do not match a dedicated platform module
+
 ## Per-Person Profiles
 
 Each applicant has their own directory under `people/<name>/`:
