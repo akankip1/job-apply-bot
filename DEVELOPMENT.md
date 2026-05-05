@@ -152,6 +152,10 @@ The dry run is successful only if:
 - Keep answer decisions in `lib/answerPlan.js`.
 - Keep DOM quirks inside `platforms/*`.
 - Add comments only for non-obvious behavior.
+- Jobs can be processed in batches with `--concurrency N` (default `1`, max `5`).
+- The embedder is pre-warmed before job processing to avoid parallel initialization races.
+- Console event output is suppressed during parallel runs; use `log.jsonl` for per-job detail.
+- ATS platforms may throttle concurrent requests; keep concurrency at `3` or lower unless you have evidence a higher value is safe.
 
 ## Test Checklist
 

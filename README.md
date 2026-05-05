@@ -71,6 +71,9 @@ node apply.js --person john-doe --submit
 # Limit to the first N jobs
 node apply.js --person john-doe --limit 1
 
+# Process 3 jobs at a time
+node apply.js --person john-doe --concurrency 3
+
 # Validate a person's profile setup
 node scripts/validate-profile.js --person john-doe
 ```

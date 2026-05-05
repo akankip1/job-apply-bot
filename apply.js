@@ -6,6 +6,7 @@ const { loadAnswers } = require("./lib/answers");
 const { loadConfig } = require("./lib/config");
 const { readJobs, writeJson, createLogger } = require("./lib/io");
 const { createAnswerPlan, validatePlan, validateResume } = require("./lib/answerPlan");
+const { initEmbedder } = require("./lib/embedClassify");
 const { detectAdapter } = require("./platforms");
 const { normalizeText } = require("./lib/text");
 
@@ -13,6 +14,7 @@ const ROOT = __dirname;
 const SUBMIT_MODE = process.argv.includes("--submit");
 const KEEP_OPEN = process.argv.includes("--keep-open") || !SUBMIT_MODE;
 const JOB_LIMIT = parseLimitArg(process.argv.slice(2));
+const CONCURRENCY = parseConcurrencyArg(process.argv.slice(2));
 const PERSON = parsePersonArg(process.argv.slice(2));
 const DATA_DIR = path.join(ROOT, "people", PERSON);
 const CONFIG = loadConfig(PERSON);
@@ -43,6 +45,18 @@ function parseLimitArg(args) {
   return limit;
 }
 
+function parseConcurrencyArg(args) {
+  const concurrencyIndex = args.indexOf("--concurrency");
+  if (concurrencyIndex === -1) return 1;
+
+  const rawConcurrency = args[concurrencyIndex + 1];
+  const concurrency = Number(rawConcurrency);
+  if (!rawConcurrency || !Number.isInteger(concurrency) || concurrency < 1 || concurrency > 5) {
+    throw new Error("--concurrency must be a whole number between 1 and 5.");
+  }
+  return concurrency;
+}
+
 function parsePersonArg(args) {
   const idx = args.indexOf("--person");
   if (idx === -1) throw new Error("--person <name> is required.");
@@ -52,7 +66,7 @@ function parsePersonArg(args) {
 }
 
 fs.mkdirSync(RUN_DIR, { recursive: true });
-const log = createLogger(LOG_FILE, SUBMIT_MODE);
+const log = createLogger(LOG_FILE, SUBMIT_MODE, { quiet: CONCURRENCY > 1 });
 
 
 async function hasHumanVerification(page) {
@@ -345,6 +359,7 @@ async function main() {
     jobsAvailable: allJobs.length,
     jobsCount: jobs.length,
     jobLimit: JOB_LIMIT,
+    concurrency: CONCURRENCY,
     runDir: RUN_DIR,
   });
 
@@ -360,9 +375,22 @@ async function main() {
 
   const results = [];
   try {
-    for (let i = 0; i < jobs.length; i += 1) {
-      const status = await processJob(context, jobs[i], profile, answers, i + 1);
-      results.push({ url: jobs[i], status });
+    await initEmbedder();
+    log("embedder_initialized", {});
+
+    for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+      const batch = jobs.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map((url, j) => {
+          const jobIndex = i + j + 1;
+          return processJob(context, url, profile, answers, jobIndex)
+            .then((status) => ({ url, status }));
+        })
+      );
+      results.push(...batchResults);
+      if (CONCURRENCY > 1) {
+        console.log(`Completed jobs ${i + 1}-${i + batch.length} of ${jobs.length}`);
+      }
     }
   } finally {
     if (!KEEP_OPEN) await context.close();
