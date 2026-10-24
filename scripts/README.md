@@ -22,7 +22,7 @@ The script extracts URLs from clipboard text regardless of format (one per line,
 
 ## `mark-run-results.js`
 
-Reads the results from a bot run and updates the job queue files. Removes URLs from `jobs.txt` and moves them into `applied_jobs.txt`, `failed_jobs.txt`, or `skipped_jobs.txt`.
+Reads explicit statuses from a bot run and atomically updates the local queue files. Dry runs remain eligible, blocked and uncertain attempts are held for review, and only confirmed submissions enter `applied_jobs.txt`.
 
 ```bash
 # Use the latest run automatically
@@ -35,9 +35,14 @@ node scripts/mark-run-results.js --person john-doe --status-file people/john-doe
 ```
 
 **Status buckets:**
-- `applied` — dry-run completed or submitted successfully
-- `failed` — blocked by missing fields, site errors, or bot failures
+- `dry_run` — recorded in `dry_run_jobs.txt` and retained in `jobs.txt`
+- `applied` — confirmed submission only
+- `blocked` — manual review required
+- `unverified` — submission attempted without reliable confirmation; never automatically retried
+- `failed` — processing or page failure
 - `skipped` — manually skipped (not currently assigned by bot)
+
+Every reconciliation is also recorded once in `application_history.jsonl`. Unknown statuses are left queued and cause a nonzero exit code.
 
 ## `test-answer-plan.js`
 

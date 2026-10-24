@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "node scripts/check-syntax.js",
+    "test": "node scripts/test-status-model.js && node scripts/test-submission-verification.js",
     "dry-run": "node apply.js",
     "submit": "node apply.js --submit",
     "mark-results": "node scripts/mark-run-results.js",

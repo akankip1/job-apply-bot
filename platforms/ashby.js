@@ -1,6 +1,7 @@
 const { extractFieldsFromFrame } = require("../lib/formSchema");
 const greenhouse = require("./greenhouse");
 const { normalizeText, escapeRegExp } = require("../lib/text");
+const { verifySubmission: verifyWithSignals } = require("./submissionVerification");
 
 function detect(page) {
   return page.frames().some((frame) => /ashbyhq\.com/i.test(frame.url())) || /jobs\.ashbyhq\.com/i.test(page.url());
@@ -414,6 +415,17 @@ async function fill(page, plan, log, options = {}) {
   return results;
 }
 
+async function verifySubmission(page, options = {}) {
+  return verifyWithSignals(page, {
+    ...options,
+    successSelectors: [
+      "[data-testid='application-submitted']",
+      "[data-testid='application-confirmation']",
+    ],
+    successUrl: /(?:thank[-_]?you|confirmation|application[-_]?submitted)/i,
+  });
+}
+
 module.exports = {
   name: "ashby",
   detect,
@@ -421,4 +433,5 @@ module.exports = {
   fill,
   nextButton: greenhouse.nextButton,
   submitButton: greenhouse.submitButton,
+  verifySubmission,
 };

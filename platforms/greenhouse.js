@@ -1,5 +1,6 @@
 const { extractFieldsFromFrame } = require("../lib/formSchema");
 const { normalizeText, escapeRegExp } = require("../lib/text");
+const { verifySubmission: verifyWithSignals } = require("./submissionVerification");
 
 const SUBMIT_RE = /^(submit|submit application|send application|complete application|finish)$/i;
 const SAFE_NEXT_RE = /^(application|next|continue|save and continue|review|review application|proceed|go to next|next step)$/i;
@@ -455,6 +456,18 @@ async function submitButton(page) {
   return visibleButtonByText(page, SUBMIT_RE);
 }
 
+async function verifySubmission(page, options = {}) {
+  return verifyWithSignals(page, {
+    ...options,
+    successSelectors: [
+      "#application_confirmation",
+      ".application--confirmation",
+      "[data-testid='application-confirmation']",
+    ],
+    successUrl: /(?:thank[-_]?you|confirmation|application[-_]?submitted|application[-_]?success)/i,
+  });
+}
+
 module.exports = {
   name: "greenhouse",
   detect,
@@ -462,4 +475,5 @@ module.exports = {
   fill,
   nextButton,
   submitButton,
+  verifySubmission,
 };

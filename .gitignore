@@ -4,9 +4,8 @@ node_modules/
 .idea
 Specs/*.md
 
-# Run artifacts and browser session data (per-person)
-people/*/.browser-profile
-people/*/runs/
+# Applicant profiles, answers, queues, resumes, sessions, and run artifacts
+people/*/
 
 # Root-level legacy locations (pre-per-person structure)
 runs/

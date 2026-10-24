@@ -13,10 +13,25 @@ The bot follows this flow:
 7. Save logs and run artifacts.
 8. Submit only in explicit submit mode.
 
+After a submit click, the active adapter must return confirmation evidence from a recognized selector, success message, or confirmation URL. A click without evidence becomes `submission_unverified`, not `submitted`.
+
+### Run Statuses
+
+- `queued`: remains in `jobs.txt`.
+- `dry_run_completed`: is recorded in `dry_run_jobs.txt` and remains queued for a later explicit submission run.
+- `blocked`: moves to `blocked_jobs.txt` for manual review.
+- `submission_unverified`: moves to `unverified_jobs.txt` and must not be automatically retried.
+- `submitted`: moves to `applied_jobs.txt` only when confirmation evidence exists.
+- `failed`: moves to `failed_jobs.txt`.
+- `skipped`: moves to `skipped_jobs.txt`.
+
+Reconciliation also appends an idempotent record to `application_history.jsonl`. Tracking-file replacements use same-directory temporary files and atomic renames.
+
 ## Main Files
 
 - `apply.js`: run orchestration
 - `lib/config.js`: per-person config (`nearbyCities`, `optionAliases`)
+- `lib/runResults.js`: explicit status-to-queue mapping and atomic reconciliation
 - `lib/profile.js`: profile parsing
 - `lib/answers.js`: reusable answer loading
 - `lib/formSchema.js`: field extraction
@@ -26,10 +41,11 @@ The bot follows this flow:
 - `platforms/ashby.js`: Ashby-specific behavior
 - `platforms/greenhouse.js`: Greenhouse-specific behavior
 - `platforms/generic.js`: fallback adapter
+- `platforms/submissionVerification.js`: shared conservative confirmation-signal checks
 - `scripts/setup-profile.js`: scaffold a new `people/<name>/` profile
 - `scripts/validate-profile.js`: validate profile, answers, and config structure
 - `scripts/add-tabs-to-jobs.js`: merge clipboard job URLs into `jobs.txt`
-- `scripts/mark-run-results.js`: move processed URLs into applied/failed/skipped queues
+- `scripts/mark-run-results.js`: reconcile dry-run, blocked, unverified, submitted, failed, and skipped results
 
 ## Current Adapter Support
 

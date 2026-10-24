@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Reads the latest (or specified) job-status.json and updates jobs.txt,
-// applied_jobs.txt, failed_jobs.txt, skipped_jobs.txt accordingly.
+// Reads the latest (or specified) job-status.json and updates local tracking files.
 // Usage: node scripts/mark-run-results.js [--person <name>] [--status-file <path>]
 
 const fs = require("fs");
 const path = require("path");
+const { reconcileRunResults } = require("../lib/runResults");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -16,28 +16,6 @@ function parseArgs(args) {
   }
   if (!result.person) throw new Error("--person <name> is required.");
   return result;
-}
-
-function readLines(filePath) {
-  if (!fs.existsSync(filePath)) return [];
-  return fs.readFileSync(filePath, "utf8").split(/\r?\n/);
-}
-
-function writeLines(filePath, lines) {
-  const seen = new Set();
-  const out = [];
-  for (const line of lines) {
-    if (line.trim().startsWith("#")) {
-      out.push(line);
-    } else if (line.trim()) {
-      const t = line.trim();
-      if (!seen.has(t)) {
-        out.push(t);
-        seen.add(t);
-      }
-    }
-  }
-  fs.writeFileSync(filePath, out.join("\n") + (out.length ? "\n" : ""), "utf8");
 }
 
 function findLatestStatusFile(dataDir) {
@@ -74,55 +52,18 @@ if (!results.length) {
   process.exit(0);
 }
 
-const jobsFile = path.join(DATA_DIR, "jobs.txt");
-const appliedFile = path.join(DATA_DIR, "applied_jobs.txt");
-const failedFile = path.join(DATA_DIR, "failed_jobs.txt");
-const skippedFile = path.join(DATA_DIR, "skipped_jobs.txt");
-
-let jobsLines = readLines(jobsFile);
-let appliedLines = readLines(appliedFile);
-let failedLines = readLines(failedFile);
-let skippedLines = readLines(skippedFile);
-
-let removedFromJobs = 0;
-let addedToApplied = 0;
-let addedToFailed = 0;
-let addedToSkipped = 0;
-const unknownBuckets = [];
-
-for (const res of results) {
-  const url = String(res.url || "").trim();
-  const bucket = res.bucket;
-  if (!url) continue;
-
-  const before = jobsLines.length;
-  jobsLines = jobsLines.filter((line) => line.trim() !== url);
-  if (jobsLines.length < before) removedFromJobs++;
-
-  appliedLines = appliedLines.filter((line) => line.trim() !== url);
-  failedLines = failedLines.filter((line) => line.trim() !== url);
-  skippedLines = skippedLines.filter((line) => line.trim() !== url);
-
-  if (bucket === "applied") { appliedLines.push(url); addedToApplied++; }
-  else if (bucket === "failed") { failedLines.push(url); addedToFailed++; }
-  else if (bucket === "skipped") { skippedLines.push(url); addedToSkipped++; }
-  else unknownBuckets.push(bucket);
-}
-
-writeLines(jobsFile, jobsLines);
-writeLines(appliedFile, appliedLines);
-writeLines(failedFile, failedLines);
-writeLines(skippedFile, skippedLines);
-
-const remaining = readLines(jobsFile).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+const summary = reconcileRunResults(DATA_DIR, results, { sourceStatusFile: statusFile });
 
 console.log("--------------------------------");
 console.log(`Results read:               ${results.length}`);
-console.log(`Removed from jobs.txt:      ${removedFromJobs}`);
-console.log(`Added to applied_jobs.txt:  ${addedToApplied}`);
-console.log(`Added to failed_jobs.txt:   ${addedToFailed}`);
-console.log(`Added to skipped_jobs.txt:  ${addedToSkipped}`);
-console.log(`Remaining in queue:         ${remaining}`);
-if (unknownBuckets.length) {
-  console.warn(`Unknown buckets: ${[...new Set(unknownBuckets)].join(", ")}`);
+console.log(`Dry runs kept eligible:     ${summary.counts.dry_run}`);
+console.log(`Processed as applied:       ${summary.counts.applied}`);
+console.log(`Processed as blocked:       ${summary.counts.blocked}`);
+console.log(`Processed as unverified:    ${summary.counts.unverified}`);
+console.log(`Processed as failed:        ${summary.counts.failed}`);
+console.log(`Processed as skipped:       ${summary.counts.skipped}`);
+console.log(`Remaining in queue:         ${summary.remainingQueued}`);
+if (summary.unknownStatuses.length) {
+  console.error(`Unknown statuses left queued: ${summary.unknownStatuses.join(", ")}`);
+  process.exitCode = 1;
 }

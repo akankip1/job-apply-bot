@@ -4,7 +4,8 @@ const { chromium } = require("playwright");
 const { loadProfile } = require("./lib/profile");
 const { loadAnswers } = require("./lib/answers");
 const { loadConfig } = require("./lib/config");
-const { readJobs, writeJson, createLogger } = require("./lib/io");
+const { readJobs, writeJson, writeJsonAtomic, createLogger } = require("./lib/io");
+const { statusToBucket } = require("./lib/runResults");
 const { createAnswerPlan, validatePlan, validateResume } = require("./lib/answerPlan");
 const { initEmbedder } = require("./lib/embedClassify");
 const { detectAdapter } = require("./platforms");
@@ -26,11 +27,9 @@ const USER_DATA_DIR = path.join(DATA_DIR, ".browser-profile");
 const FINAL_STATUS = {
   DRY_RUN: "dry_run_completed",
   SUBMITTED: "submitted",
-  MISSING_REQUIRED: "blocked_missing_required_field",
-  SENSITIVE: "blocked_sensitive_field",
-  RESUME_MISSING: "blocked_resume_missing",
-  PAGE_LOAD: "failed_page_load",
-  UNKNOWN: "failed_unknown_error",
+  SUBMISSION_UNVERIFIED: "submission_unverified",
+  BLOCKED: "blocked",
+  FAILED: "failed",
 };
 
 function parseLimitArg(args) {
@@ -129,9 +128,7 @@ async function dismissCookieBanner(page) {
 }
 
 function blockerStatus(blockers) {
-  if (blockers.some((blocker) => /resume/.test(blocker.reason))) return FINAL_STATUS.RESUME_MISSING;
-  if (blockers.some((blocker) => /sensitive|legal|human_verification/.test(blocker.reason))) return FINAL_STATUS.SENSITIVE;
-  return FINAL_STATUS.MISSING_REQUIRED;
+  return blockers.length ? FINAL_STATUS.BLOCKED : null;
 }
 
 function fillFailuresAsBlockers(plan, fillResults) {
@@ -270,15 +267,21 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
 
 async function processJob(context, url, profile, answers, jobIndex) {
   const page = await context.newPage();
-  const jobState = { blockers: [], status: FINAL_STATUS.DRY_RUN };
+  const jobState = {
+    blockers: [],
+    confirmationEvidence: null,
+    status: FINAL_STATUS.DRY_RUN,
+    submissionAttempted: false,
+    submissionReason: null,
+  };
   const fillHistory = new Set(); // Track all successful fills for this job
   log("job_started", { jobIndex, url });
 
   try {
     const loaded = await loadPage(page, url);
     if (!loaded) {
-      jobState.status = FINAL_STATUS.PAGE_LOAD;
-      return jobState.status;
+      jobState.status = FINAL_STATUS.FAILED;
+      return jobState;
     }
 
     if (await dismissCookieBanner(page)) {
@@ -310,10 +313,28 @@ async function processJob(context, url, profile, answers, jobIndex) {
           log("submission_skipped_dry_run", { buttonText: submitButton.text, frameUrl: submitButton.frameUrl });
           break;
         }
+        const beforeUrl = page.url();
+        jobState.submissionAttempted = true;
         await submitButton.locator.click({ timeout: 5000 });
         await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
-        jobState.status = FINAL_STATUS.SUBMITTED;
-        log("submitted", { confirmationUrl: page.url() });
+        const verification = await adapter.verifySubmission(page, { beforeUrl }).catch((error) => ({
+          confirmed: false,
+          reason: "verification_error",
+          error: error.message,
+        }));
+        if (verification.confirmed) {
+          jobState.status = FINAL_STATUS.SUBMITTED;
+          jobState.confirmationEvidence = verification.evidence;
+          log("submission_confirmed", { confirmationEvidence: verification.evidence, confirmationUrl: page.url() });
+        } else {
+          jobState.status = FINAL_STATUS.SUBMISSION_UNVERIFIED;
+          jobState.submissionReason = verification.reason;
+          log("submission_unverified", {
+            confirmationUrl: page.url(),
+            reason: verification.reason,
+            error: verification.error,
+          });
+        }
         break;
       }
 
@@ -334,14 +355,17 @@ async function processJob(context, url, profile, answers, jobIndex) {
       log("dry_run_verified", { message: "All required fields filled or planned. No blockers." });
     }
 
-    return jobState.status;
+    return jobState;
   } catch (error) {
-    jobState.status = FINAL_STATUS.UNKNOWN;
+    jobState.status = jobState.submissionAttempted ? FINAL_STATUS.SUBMISSION_UNVERIFIED : FINAL_STATUS.FAILED;
+    if (jobState.submissionAttempted) jobState.submissionReason = "submission_attempt_error";
     log("job_failed", { jobIndex, url, error: error.stack || error.message });
-    return jobState.status;
+    return jobState;
   } finally {
     log("job_finished", { jobIndex, url, status: jobState.status, blockers: jobState.blockers });
-    if (!KEEP_OPEN || jobState.status === FINAL_STATUS.SUBMITTED) await page.close().catch(() => {});
+    if (!KEEP_OPEN || [FINAL_STATUS.SUBMITTED, FINAL_STATUS.SUBMISSION_UNVERIFIED].includes(jobState.status)) {
+      await page.close().catch(() => {});
+    }
   }
 }
 
@@ -384,7 +408,13 @@ async function main() {
         batch.map((url, j) => {
           const jobIndex = i + j + 1;
           return processJob(context, url, profile, answers, jobIndex)
-            .then((status) => ({ url, status }));
+            .then((jobState) => ({
+              url,
+              status: jobState.status,
+              blockers: jobState.blockers,
+              confirmationEvidence: jobState.confirmationEvidence,
+              submissionReason: jobState.submissionReason,
+            }));
         })
       );
       results.push(...batchResults);
@@ -398,24 +428,17 @@ async function main() {
 
   log("run_finished", { results });
   
-  const statusMapping = {
-    [FINAL_STATUS.SUBMITTED]: "applied",
-    [FINAL_STATUS.DRY_RUN]: "applied",
-    [FINAL_STATUS.MISSING_REQUIRED]: "failed",
-    [FINAL_STATUS.SENSITIVE]: "failed",
-    [FINAL_STATUS.RESUME_MISSING]: "failed",
-    [FINAL_STATUS.PAGE_LOAD]: "failed",
-    [FINAL_STATUS.UNKNOWN]: "failed",
-  };
-
   const statusResults = results.map((r) => ({
     url: r.url,
     status: r.status,
-    bucket: statusMapping[r.status] || "failed",
+    bucket: statusToBucket(r.status),
+    blockers: r.blockers,
+    confirmationEvidence: r.confirmationEvidence,
+    submissionReason: r.submissionReason,
   }));
 
   const statusPath = path.join(RUN_DIR, "job-status.json");
-  writeJson(statusPath, { results: statusResults });
+  writeJsonAtomic(statusPath, { results: statusResults });
   log("status_file_written", { statusPath });
 
   console.table(results);

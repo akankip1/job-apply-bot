@@ -1,5 +1,6 @@
 const { extractFieldsFromFrame } = require("../lib/formSchema");
 const greenhouse = require("./greenhouse");
+const { verifySubmission } = require("./submissionVerification");
 
 async function extract(page) {
   const fields = [];
@@ -22,4 +23,5 @@ module.exports = {
   fill: greenhouse.fill,
   nextButton: greenhouse.nextButton,
   submitButton: greenhouse.submitButton,
+  verifySubmission,
 };
