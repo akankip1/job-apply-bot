@@ -21,6 +21,7 @@ const LOCATION_OPTION_SELECTORS = [
   "[class*='autocomplete'] li",
   "li",
 ];
+const VALIDATION_ERROR_SELECTOR = "[aria-invalid='true'], .field-error, .error-message, [data-testid*='error']";
 const COMBOBOX_LABEL_RE = /country|location|eligible|authorized|verification|identity|18 years|sponsor|visa|hybrid|relocat|onsite|office|previously employed|ever been employed|gender|ethnicity|race|hispanic|latino|veteran|disability|school|degree|discipline|month|how did you hear|privacy policy|acknowledge|interviewed with|export license|ear|contractual obligations|fugitive|alien|controlled substance|mental defective|mental institution|dishonorable|renounced/;
 
 function isGreenhouseFrame(frame) {
@@ -157,6 +158,74 @@ async function selectOption(locator, answer) {
   return true;
 }
 
+async function verifyDecisionState(page, decision) {
+  const frame = frameFor(page, decision.frameUrl);
+  if (!frame) return { filled: false, reason: "frame_not_found" };
+
+  if (decision.key === "resume" || decision.type === "file") {
+    const locator = fieldLocator(frame, decision);
+    const fileCount = await locator.evaluate((element) => element.files?.length || 0).catch(() => 0);
+    return fileCount > 0 ? { filled: true } : { filled: false, reason: "file_not_attached" };
+  }
+
+  if (decision.type === "checkbox") {
+    const locator = fieldLocator(frame, decision);
+    const checked = await locator.isChecked().catch(() => false);
+    const expectedChecked = /^(yes|true|checked)$/i.test(String(decision.answer || "").trim());
+    return checked === expectedChecked ? { filled: true } : { filled: false, reason: "choice_not_persisted" };
+  }
+
+  if (decision.type === "radio") {
+    const candidates = decision.selector ? frame.locator(decision.selector) : frame.locator(CONTROL_SELECTOR).nth(decision.index);
+    const count = await candidates.count().catch(() => 1);
+    let selected = false;
+    for (let index = 0; index < count; index += 1) {
+      const candidate = count === 1 ? candidates : candidates.nth(index);
+      selected = await candidate.evaluate((element) => {
+        if (element.matches?.("input[type='radio']")) return Boolean(element.checked);
+        return Boolean(element.querySelector?.(
+          "input[type='radio']:checked, [role='radio'][aria-checked='true'], [aria-pressed='true'], [data-state='on'], [data-state='checked'], .selected"
+        ));
+      }).catch(() => false);
+      if (selected) break;
+    }
+    return selected ? { filled: true } : { filled: false, reason: "choice_not_persisted" };
+  }
+
+  if (decision.type === "select") {
+    const locator = fieldLocator(frame, decision);
+    if (decision.tag === "workable-combobox") {
+      const selectedText = await locator.evaluate((element) => {
+        const input = element.querySelector?.("input");
+        return String(
+          input?.value ||
+          element.getAttribute?.("aria-valuetext") ||
+          element.getAttribute?.("data-value") ||
+          element.innerText ||
+          element.textContent ||
+          ""
+        ).trim();
+      }).catch(() => "");
+      const placeholder = normalizeText(decision.label);
+      const selected = normalizeText(selectedText);
+      return selected && selected !== placeholder
+        ? { filled: true }
+        : { filled: false, reason: "option_not_persisted" };
+    }
+    const selected = await locator.evaluate((element) => {
+      const option = element.options?.[element.selectedIndex];
+      const value = String(element.value || "").trim();
+      const label = String(option?.textContent || "").trim();
+      return Boolean(value && !/^select(?: an? option)?$/i.test(label));
+    }).catch(() => false);
+    return selected ? { filled: true } : { filled: false, reason: "option_not_persisted" };
+  }
+
+  const locator = fieldLocator(frame, decision);
+  const value = await locator.inputValue({ timeout: 1000 }).catch(() => "");
+  return String(value).trim() ? { filled: true } : { filled: false, reason: "value_not_persisted" };
+}
+
 async function clickChoice(frame, decision) {
   const label = decision.label || "";
   const answer = String(decision.answer || "").trim();
@@ -197,16 +266,24 @@ async function fillDecision(page, decision, log, aliases = {}) {
 
   try {
     if (decision.key === "resume" || decision.type === "file") {
+      const current = await verifyDecisionState(page, decision);
+      if (current.filled) return { filled: true, skipped: true };
       await locator.setInputFiles(decision.answer, { timeout: 5000 });
-      return { filled: true };
+      return verifyDecisionState(page, decision);
     }
     if (decision.type === "select") {
       const selected = await selectOption(locator, decision.answer);
-      return selected ? { filled: true } : { filled: false, reason: "option_not_found" };
+      if (!selected) return { filled: false, reason: "option_not_found" };
+      return verifyDecisionState(page, decision);
     }
     if (decision.type === "radio" || decision.type === "checkbox") {
+      if (decision.type === "checkbox") {
+        const current = await verifyDecisionState(page, decision);
+        if (current.filled) return { filled: true, skipped: true };
+      }
       const clicked = await clickChoice(frame, decision);
-      return clicked ? { filled: true } : { filled: false, reason: "choice_not_found" };
+      if (!clicked) return { filled: false, reason: "choice_not_found" };
+      return verifyDecisionState(page, decision);
     }
 
     const label = normalizeText(decision.label);
@@ -427,6 +504,37 @@ async function fill(page, plan, log, options = {}) {
   return results;
 }
 
+async function verify(page, plan, log) {
+  const results = [];
+  for (const decision of plan.decisions.filter((item) => item.required && item.safeToFill)) {
+    const result = await verifyDecisionState(page, decision);
+    if (!result.filled) {
+      log("required_field_verification_failed", {
+        fieldId: decision.fieldId,
+        label: decision.label,
+        reason: result.reason,
+      });
+    }
+    results.push({ fieldId: decision.fieldId, ...result });
+  }
+  return results;
+}
+
+async function validationErrors(page) {
+  const blockers = [];
+  for (const frame of page.frames()) {
+    const errors = frame.locator(VALIDATION_ERROR_SELECTOR);
+    const count = await errors.count().catch(() => 0);
+    for (let index = 0; index < count; index += 1) {
+      if (await errors.nth(index).isVisible().catch(() => false)) {
+        blockers.push({ reason: "validation_error_visible", frameUrl: frame.url() });
+        break;
+      }
+    }
+  }
+  return blockers;
+}
+
 async function visibleButtonByText(page, re) {
   for (const frame of page.frames()) {
     const buttons = frame.locator("button, input[type='submit'], input[type='button'], a[role='button'], [role='tab'], a");
@@ -473,6 +581,8 @@ module.exports = {
   detect,
   extract,
   fill,
+  verify,
+  validationErrors,
   nextButton,
   submitButton,
   verifySubmission,

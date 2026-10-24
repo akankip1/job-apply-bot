@@ -21,6 +21,8 @@ module.exports = {
   detect: () => true,
   extract,
   fill: greenhouse.fill,
+  verify: greenhouse.verify,
+  validationErrors: greenhouse.validationErrors,
   nextButton: greenhouse.nextButton,
   submitButton: greenhouse.submitButton,
   verifySubmission,

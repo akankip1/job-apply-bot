@@ -3,6 +3,9 @@ node_modules/
 *.log
 .idea
 Specs/*.md
+Specs/Improvements/BASELINE_AUDIT.md
+Specs/Improvements/IMPLEMENTATION_ROADMAP.md
+Specs/Improvements/improvements.md
 
 # Applicant profiles, answers, queues, resumes, sessions, and run artifacts
 people/*/

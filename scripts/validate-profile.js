@@ -25,6 +25,7 @@ const EXPECTED_ANSWER_KEYS = [
   "recently_interviewed_with_company",
   "work_authorization_any_us_employer_now_future",
   "work_authorization_basis",
+  "located_in_european_union",
   "identity_and_work_authorization_verification",
   "age_18_or_older",
   "deemed_export_license_eligible",

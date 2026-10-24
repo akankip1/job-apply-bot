@@ -22,6 +22,7 @@ const mockProfile = {
     email: "test@example.com",
     phone: "555-0199",
     location: "Seattle, WA",
+    country: "United States",
     resumePath: "C:\\mock\\resume.pdf",
     yearsOfExperience: 4,
     primaryEducation: {
@@ -30,6 +31,7 @@ const mockProfile = {
       discipline: "Computer Science"
     }
   },
+  nearbyCities: { seattle: ["bellevue"] },
   sensitive: {
     gender: "Female",
     ethnicity: "South Asian",
@@ -44,7 +46,8 @@ const mockProfile = {
 const mockAnswers = {
   sexual_orientation: "Heterosexual",
   how_did_you_hear: "LinkedIn",
-  work_authorization_any_us_employer_now_future: "Yes"
+  work_authorization_any_us_employer_now_future: "Yes",
+  located_in_european_union: "No"
 };
 
 async function runTests() {
@@ -122,7 +125,7 @@ async function runTests() {
   await assertMatch("Are you authorized to be employed in the United States?", "workAuthorization", mockProfile.sensitive.authorizedUS);
   await assertMatch("Are you located in the European Union?", "locatedInEU", "No");
   await assertMatch("Are you near Bellevue?", "locationFact", "Yes");
-  await assertMatch("Are you near Florida?", "locationFact", "No");
+  await assertMatch("Are you near Florida?", null, "");
   await assertMatch("Are you based in the United States?", "locationFact", "Yes");
 
   // Basic identity (Ashby specific IDs)

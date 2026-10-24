@@ -150,7 +150,7 @@ async function extract(page) {
   };
 }
 
-async function clickAshbyButtonGroup(page, decision, log) {
+async function clickAshbyButtonGroup(page, decision, log, verifyOnly = false) {
   const wanted = String(decision.answer || "").trim();
   if (!wanted) return { filled: false, reason: decision.reason };
   
@@ -216,9 +216,22 @@ async function clickAshbyButtonGroup(page, decision, log) {
               return { filled: true };
             }
 
+            if (verifyOnly) return { filled: false, reason: "choice_not_persisted" };
+
             await control.click({ force: true, timeout: 3000 }).catch(() => {});
-            log("ashby_group_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
-            return { filled: true };
+            await frame.waitForTimeout(100);
+            const persisted = await control.evaluate((el) => (
+              Boolean(el.checked) ||
+              el.getAttribute("aria-checked") === "true" ||
+              el.getAttribute("aria-pressed") === "true" ||
+              el.classList.contains("selected") ||
+              ["on", "checked"].includes(el.getAttribute("data-state"))
+            )).catch(() => false);
+            if (persisted) {
+              log("ashby_group_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
+              return { filled: true };
+            }
+            return { filled: false, reason: "choice_not_persisted" };
           }
         }
       }
@@ -415,6 +428,23 @@ async function fill(page, plan, log, options = {}) {
   return results;
 }
 
+async function verify(page, plan, log) {
+  const groupDecisions = plan.decisions.filter((decision) =>
+    decision.required &&
+    decision.safeToFill &&
+    ["button-group", "radio-group"].includes(decision.tag)
+  );
+  const standardPlan = {
+    ...plan,
+    decisions: plan.decisions.filter((decision) => !groupDecisions.includes(decision)),
+  };
+  const results = await greenhouse.verify(page, standardPlan, log);
+  for (const decision of groupDecisions) {
+    results.push({ fieldId: decision.fieldId, ...await clickAshbyButtonGroup(page, decision, log, true) });
+  }
+  return results;
+}
+
 async function verifySubmission(page, options = {}) {
   return verifyWithSignals(page, {
     ...options,
@@ -431,6 +461,8 @@ module.exports = {
   detect,
   extract,
   fill,
+  verify,
+  validationErrors: greenhouse.validationErrors,
   nextButton: greenhouse.nextButton,
   submitButton: greenhouse.submitButton,
   verifySubmission,

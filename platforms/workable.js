@@ -568,6 +568,8 @@ module.exports = {
   detect,
   extract,
   fill,
+  verify: greenhouse.verify,
+  validationErrors: greenhouse.validationErrors,
   nextButton: greenhouse.nextButton,
   submitButton: greenhouse.submitButton,
   verifySubmission,

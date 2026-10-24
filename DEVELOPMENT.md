@@ -10,8 +10,9 @@ The bot follows this flow:
 4. Extract a structured form schema.
 5. Build an answer plan.
 6. Fill only approved answers.
-7. Save logs and run artifacts.
-8. Submit only in explicit submit mode.
+7. Re-extract the full form, refill idempotently, and verify live required-field state.
+8. Save logs and run artifacts.
+9. Submit only in explicit submit mode.
 
 After a submit click, the active adapter must return confirmation evidence from a recognized selector, success message, or confirmation URL. A click without evidence becomes `submission_unverified`, not `submitted`.
 
@@ -37,6 +38,7 @@ Reconciliation also appends an idempotent record to `application_history.jsonl`.
 - `lib/formSchema.js`: field extraction
 - `lib/answerPlan.js`: field-to-answer mapping
 - `lib/embedClassify.js`: semantic label classification support
+- `lib/humanVerification.js`: CAPTCHA/human-verification detection and bounded manual wait
 - `platforms/index.js`: adapter selection
 - `platforms/ashby.js`: Ashby-specific behavior
 - `platforms/greenhouse.js`: Greenhouse-specific behavior
@@ -73,6 +75,10 @@ Use the artifact that failed to decide where the change belongs:
 - If a dropdown option needs an alias (e.g. a school name in a different format), add it to `optionAliases` in `people/<name>/config.json` keyed by `decision.key`.
 
 Do not hardcode applicant data in source files. Profile-derived answers belong in `people/<name>/profile.md`; reusable manually approved answers belong in `people/<name>/answers.json`; per-person config (location groups, option aliases) belongs in `people/<name>/config.json`.
+
+Before advancing or submitting, adapters re-extract the complete current form and perform another idempotent fill pass. Required text, checkbox, radio, select, and file inputs are then read from the live DOM. Visible validation errors or values that did not persist become blockers.
+
+Human verification blocks automation. With explicit `--submit --keep-open`, the runner waits up to two minutes for manual completion and then restarts extraction, planning, filling, and validation. It never interacts with or bypasses the challenge itself.
 
 ### Hybrid Answer Planning (LLMification)
 

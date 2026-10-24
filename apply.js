@@ -8,12 +8,13 @@ const { readJobs, writeJson, writeJsonAtomic, createLogger } = require("./lib/io
 const { statusToBucket } = require("./lib/runResults");
 const { createAnswerPlan, validatePlan, validateResume } = require("./lib/answerPlan");
 const { initEmbedder } = require("./lib/embedClassify");
+const { hasHumanVerification, waitForHumanVerification } = require("./lib/humanVerification");
 const { detectAdapter } = require("./platforms");
-const { normalizeText } = require("./lib/text");
 
 const ROOT = __dirname;
 const SUBMIT_MODE = process.argv.includes("--submit");
 const KEEP_OPEN = process.argv.includes("--keep-open") || !SUBMIT_MODE;
+const WAIT_FOR_HUMAN = SUBMIT_MODE && process.argv.includes("--keep-open");
 const JOB_LIMIT = parseLimitArg(process.argv.slice(2));
 const CONCURRENCY = parseConcurrencyArg(process.argv.slice(2));
 const PERSON = parsePersonArg(process.argv.slice(2));
@@ -67,23 +68,6 @@ function parsePersonArg(args) {
 fs.mkdirSync(RUN_DIR, { recursive: true });
 const log = createLogger(LOG_FILE, SUBMIT_MODE, { quiet: CONCURRENCY > 1 });
 
-
-async function hasHumanVerification(page) {
-  for (const frame of page.frames()) {
-    const widgets = frame.locator("iframe[src*='recaptcha'], iframe[src*='hcaptcha'], .g-recaptcha, .h-captcha");
-    const widgetCount = await widgets.count().catch(() => 0);
-    for (let i = 0; i < widgetCount; i += 1) {
-      if (await widgets.nth(i).isVisible().catch(() => false)) return true;
-    }
-
-    const challengeTexts = frame.getByText(/verify you are human|human verification|i'?m not a robot|captcha verification/i);
-    const textCount = await challengeTexts.count().catch(() => 0);
-    for (let i = 0; i < textCount; i += 1) {
-      if (await challengeTexts.nth(i).isVisible().catch(() => false)) return true;
-    }
-  }
-  return false;
-}
 
 async function loadPage(page, url) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -143,14 +127,7 @@ function fillFailuresAsBlockers(plan, fillResults) {
     }));
 }
 
-function fieldIdentity(field) {
-  // Prefer normalized label as the primary stable identity for dynamic forms
-  const labelId = field.label ? `label:${normalizeText(field.label)}` : null;
-  const technicalId = [field.fieldId, field.selector, field.id, field.name].filter(Boolean).join("|");
-  return labelId || technicalId;
-}
-
-async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, step, fillHistory = new Set()) {
+async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, step) {
   const schema = await adapter.extract(page);
   const schemaPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-form-schema.json`);
   writeJson(schemaPath, schema);
@@ -163,16 +140,6 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
   });
 
   const plan = await createAnswerPlan(schema, profile, answers, { log });
-  
-  // FILTER PLAN: Do not re-fill fields that have already been filled with the same answer
-  plan.decisions = plan.decisions.filter(decision => {
-    const id = fieldIdentity(decision);
-    const historyKey = `${id}=${decision.answer}`;
-    if (fillHistory.has(historyKey)) {
-      return false;
-    }
-    return true;
-  });
 
   const planPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-answer-plan.json`);
   writeJson(planPath, plan);
@@ -187,72 +154,38 @@ async function extractPlanAndFill(page, adapter, profile, answers, jobIndex, ste
   const resumeBlocker = validateResume(plan);
   const manualBlockers = validatePlan(plan);
   const fillResults = await adapter.fill(page, plan, log, { aliases: CONFIG.optionAliases || {} });
-  
-  // Track successful fills in history
-  for (const res of fillResults) {
-    if (res.filled) {
-      const decision = plan.decisions.find(d => d.fieldId === res.fieldId);
-      if (decision) {
-        const id = fieldIdentity(decision);
-        fillHistory.add(`${id}=${decision.answer}`);
-      }
-    }
-  }
-
   const fillBlockers = fillFailuresAsBlockers(plan, fillResults);
   const blockers = [...manualBlockers, ...(resumeBlocker ? [resumeBlocker] : []), ...fillBlockers];
 
   if (!blockers.length) {
-    await page.waitForTimeout(500);
-    const knownFields = new Set(schema.fields.map(fieldIdentity));
-    const dynamicSchema = await adapter.extract(page);
-    const dynamicFields = dynamicSchema.fields.filter((field) => !knownFields.has(fieldIdentity(field)));
-
-    if (dynamicFields.length) {
-      const dynamicOnlySchema = { ...dynamicSchema, fields: dynamicFields };
-      const dynamicSchemaPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-dynamic-form-schema.json`);
-      writeJson(dynamicSchemaPath, dynamicOnlySchema);
-      log("dynamic_form_schema_extracted", {
+    for (let recheck = 1; recheck <= 2 && !blockers.length; recheck += 1) {
+      await page.waitForTimeout(500);
+      const recheckSchema = await adapter.extract(page);
+      const recheckSchemaPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-recheck-${recheck}-form-schema.json`);
+      writeJson(recheckSchemaPath, recheckSchema);
+      log("form_schema_rechecked", {
         jobIndex,
         step,
-        platform: dynamicSchema.platform,
-        fieldsCount: dynamicFields.length,
-        schemaPath: dynamicSchemaPath,
+        recheck,
+        platform: recheckSchema.platform,
+        fieldsCount: recheckSchema.fields.length,
+        schemaPath: recheckSchemaPath,
       });
 
-      const dynamicPlan = await createAnswerPlan(dynamicOnlySchema, profile, answers, { log });
-      
-      // Filter dynamic plan too
-      dynamicPlan.decisions = dynamicPlan.decisions.filter(decision => {
-        const id = fieldIdentity(decision);
-        const historyKey = `${id}=${decision.answer}`;
-        if (fillHistory.has(historyKey)) return false;
-        return true;
-      });
-
-      const dynamicPlanPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-dynamic-answer-plan.json`);
-      writeJson(dynamicPlanPath, dynamicPlan);
-      log("dynamic_answer_plan_created", {
-        jobIndex,
-        step,
-        decisionsCount: dynamicPlan.decisions.length,
-        manualReviewCount: dynamicPlan.manualReview.length,
-        planPath: dynamicPlanPath,
-      });
-
-      const dynamicFillResults = await adapter.fill(page, dynamicPlan, log, { aliases: CONFIG.optionAliases || {} });
-      
-      for (const res of dynamicFillResults) {
-        if (res.filled) {
-          const decision = dynamicPlan.decisions.find(d => d.fieldId === res.fieldId);
-          if (decision) {
-            const id = fieldIdentity(decision);
-            fillHistory.add(`${id}=${decision.answer}`);
-          }
-        }
-      }
-      
-      blockers.push(...validatePlan(dynamicPlan), ...fillFailuresAsBlockers(dynamicPlan, dynamicFillResults));
+      const recheckPlan = await createAnswerPlan(recheckSchema, profile, answers, { log });
+      const recheckPlanPath = path.join(RUN_DIR, `job-${jobIndex}-step-${step}-recheck-${recheck}-answer-plan.json`);
+      writeJson(recheckPlanPath, recheckPlan);
+      const recheckFillResults = await adapter.fill(page, recheckPlan, log, { aliases: CONFIG.optionAliases || {} });
+      const verificationResults = await adapter.verify(page, recheckPlan, log);
+      const validationBlockers = await adapter.validationErrors(page);
+      const recheckResumeBlocker = validateResume(recheckPlan);
+      blockers.push(
+        ...validatePlan(recheckPlan),
+        ...(recheckResumeBlocker ? [recheckResumeBlocker] : []),
+        ...fillFailuresAsBlockers(recheckPlan, recheckFillResults),
+        ...fillFailuresAsBlockers(recheckPlan, verificationResults),
+        ...validationBlockers
+      );
     }
   }
 
@@ -274,7 +207,6 @@ async function processJob(context, url, profile, answers, jobIndex) {
     submissionAttempted: false,
     submissionReason: null,
   };
-  const fillHistory = new Set(); // Track all successful fills for this job
   log("job_started", { jobIndex, url });
 
   try {
@@ -295,11 +227,23 @@ async function processJob(context, url, profile, answers, jobIndex) {
 
       if (await hasHumanVerification(page)) {
         log("human_verification_possible", { jobIndex, step, url: page.url() });
+        if (WAIT_FOR_HUMAN) {
+          console.log("Human verification detected. Complete it in the browser within 2 minutes.");
+          const resolved = await waitForHumanVerification(page);
+          log(resolved ? "human_verification_resolved" : "human_verification_timeout", { jobIndex, step, url: page.url() });
+          if (!resolved) {
+            jobState.blockers.push({ reason: "human_verification_required", label: "Human verification" });
+            break;
+          }
+        } else {
+          jobState.blockers.push({ reason: "human_verification_required", label: "Human verification" });
+          break;
+        }
       }
 
       const adapter = detectAdapter(page);
       log("adapter_selected", { jobIndex, step, adapter: adapter.name });
-      const result = await extractPlanAndFill(page, adapter, profile, answers, jobIndex, step, fillHistory);
+      const result = await extractPlanAndFill(page, adapter, profile, answers, jobIndex, step);
 
       if (result.blockers.length) {
         jobState.blockers.push(...result.blockers);

@@ -91,7 +91,7 @@ Everything under `people/<name>/` is private local data and is ignored by Git. D
 
 Copying tabs only changes the clipboard. It does not start the importer or the bot. The current importer performs exact-string deduplication within `jobs.txt`; stricter URL validation, normalized deduplication, and cross-checks against historical tracking files are planned but not yet implemented.
 
-Answer planning uses explicit rules and deterministic profile/answer lookups first, then local embedding classification for supported label variations. Unsupported required fields are intended to enter manual review; Stage 3 of the roadmap will harden sensitive-answer and required-field safeguards before bulk submission.
+Answer planning uses explicit rules and deterministic profile/answer lookups first, then local embedding classification for supported label variations. Sensitive, legal, salary, work-authorization, demographic, and location-willingness answers require an explicit profile or reusable-answer source. Missing values remain unanswered, and unsupported required fields block submission for manual review.
 
 ## Commands
 
@@ -104,6 +104,9 @@ node apply.js --person john-doe
 
 # Submit for a specific person
 node apply.js --person john-doe --submit
+
+# Submit while allowing up to two minutes for manual human verification
+node apply.js --person john-doe --submit --keep-open
 
 # Limit to the first N jobs
 node apply.js --person john-doe --limit 1
@@ -158,6 +161,8 @@ Important files:
 - `log.jsonl`
 - `job-*-form-schema.json`
 - `job-*-answer-plan.json`
+- `job-*-recheck-*-form-schema.json`
+- `job-*-recheck-*-answer-plan.json`
 - `job-status.json`
 
 Run artifacts can contain form labels, answers, URLs, and screenshots. Keep them local and inspect `log.jsonl` for `field_fill_failed`, unexpected `value_not_persisted`, blockers, and the final job status.
@@ -184,8 +189,8 @@ Runs `node --check` on all source files, then validates every local person profi
 - Dry-run is the default.
 - Submit requires `node apply.js --person <name> --submit`.
 - Only verified submissions enter `applied_jobs.txt`; dry runs stay eligible and uncertain submissions are held separately.
-- Unknown required fields are intended to block submission; Stage 3 adds regression coverage and closes known unsafe inference paths.
-- CAPTCHA/human verification is not bypassed.
-- Sensitive answers should only come from the profile or approved reusable answers; do not use bulk submission until the Stage 3 safeguards are complete.
+- Unknown required fields block submission.
+- CAPTCHA/human verification is never bypassed. It blocks immediately unless submit mode explicitly includes `--keep-open`, which pauses for manual completion and then revalidates the form.
+- Sensitive answers only come from the profile or approved reusable answers; missing values never silently become `No`.
 - Applicant data must never be sent to external APIs or committed to Git.
 - Unknown required, sensitive, salary, background-check, and legal fields must receive manual review unless an explicit approved answer exists.
