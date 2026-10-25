@@ -150,44 +150,57 @@ async function extract(page) {
   };
 }
 
-async function clickAshbyButtonGroup(page, decision, log, verifyOnly = false) {
+function choiceMatchers(decision) {
   const wanted = String(decision.answer || "").trim();
-  if (!wanted) return { filled: false, reason: decision.reason };
-  
   const isYesNo = /^(yes|no|true|false)$/i.test(wanted);
   const isWantedYes = /^(yes|true)$/i.test(wanted);
 
   const yesMatchers = [/^\s*yes\b/i, /i have a disability/i, /i am a veteran/i, /identify as transgender/i, /i identify as/i, /i have/i];
-  const noMatchers = [/^\s*no\b/i, /don't have a disability/i, /do not have a disability/i, /not a veteran/i, /do not identify/i, /don't identify/i, /prefer not to/i, /i do not/i, /i don't/i, /i do not have a disability/i];
+  const noMatchers = [/^\s*no\b/i, /don't have a disability/i, /do not have a disability/i, /not a (?:protected )?veteran/i, /do not identify/i, /don't identify/i, /prefer not to/i, /i do not/i, /i don't/i, /i do not have a disability/i];
 
-  let matchers = [];
   if (isYesNo) {
-    matchers = isWantedYes ? yesMatchers : noMatchers;
-  } else {
-    matchers = [new RegExp(escapeRegExp(wanted), "i")];
+    return isWantedYes ? yesMatchers : noMatchers;
   }
 
-  const question = normalizeText(decision.label);
+  if (decision.key === "ethnicity" && /south asian/i.test(wanted)) {
+    return [/\basian\b/i];
+  }
+
+  return [new RegExp(escapeRegExp(wanted), "i")];
+}
+
+function groupTextMatchesQuestion(rawText, label) {
+  const text = normalizeText(rawText);
+  const question = normalizeText(label);
+  const questionPrefix = normalizeText(String(label || "").slice(0, 50));
+  return text === question ||
+    text.startsWith(`${question} `) ||
+    (questionPrefix && text.startsWith(questionPrefix));
+}
+
+async function clickAshbyButtonGroup(page, decision, log, verifyOnly = false) {
+  const wanted = String(decision.answer || "").trim();
+  if (!wanted) return { filled: false, reason: decision.reason };
+
+  const matchers = choiceMatchers(decision);
 
   for (const frame of page.frames()) {
-    const questionPrefix = decision.label.slice(0, 50);
     const allDivs = frame.locator("div, fieldset, [role='radiogroup'], [role='group']");
     const divCount = await allDivs.count().catch(() => 0);
     
     let best = null;
     for (let i = 0; i < divCount; i += 1) {
       const group = allDivs.nth(i);
+      const controlCount = await group.locator("button, label, [role='radio'], [role='button'], input[type='radio']").count().catch(() => 0);
+      if (controlCount < 2) continue;
       const rawText = await group.innerText({ timeout: 500 }).catch(() => "");
       if (!rawText) continue;
       
-      const text = normalizeText(rawText);
-      const isMatch = text.includes(question) || 
-                      text.includes(normalizeText(questionPrefix)) ||
-                      (/disab/i.test(decision.label) && /disab/i.test(text));
+      const isMatch = groupTextMatchesQuestion(rawText, decision.label);
 
       if (isMatch) {
         if (!best || rawText.length < best.rawLength) {
-          best = { group, rawLength: rawText.length, text: text.slice(0, 50) };
+          best = { group, rawLength: rawText.length };
         }
       }
     }
@@ -200,11 +213,13 @@ async function clickAshbyButtonGroup(page, decision, log, verifyOnly = false) {
         for (let i = 0; i < controlCount; i++) {
           const control = controls.nth(i);
           const meta = await control.evaluate((el) => {
-            const isChecked = el.checked || el.getAttribute("aria-checked") === "true" || el.classList.contains("selected") || el.getAttribute("data-state") === "on";
+            const input = el.matches("input[type='radio']") ? el : el.control || el.querySelector("input[type='radio']");
+            const selected = input || el;
+            const isChecked = selected.checked || selected.getAttribute("aria-checked") === "true" || selected.classList.contains("selected") || selected.getAttribute("data-state") === "on";
             return {
               text: (el.innerText || "").trim(),
               labelText: (el.labels && el.labels[0] ? el.labels[0].innerText : "").trim(),
-              value: el.value || "",
+              value: input?.value || el.value || "",
               isChecked
             };
           }).catch(() => ({ text: "", labelText: "", value: "", isChecked: false }));
@@ -220,13 +235,15 @@ async function clickAshbyButtonGroup(page, decision, log, verifyOnly = false) {
 
             await control.click({ force: true, timeout: 3000 }).catch(() => {});
             await frame.waitForTimeout(100);
-            const persisted = await control.evaluate((el) => (
-              Boolean(el.checked) ||
-              el.getAttribute("aria-checked") === "true" ||
-              el.getAttribute("aria-pressed") === "true" ||
-              el.classList.contains("selected") ||
-              ["on", "checked"].includes(el.getAttribute("data-state"))
-            )).catch(() => false);
+            const persisted = await control.evaluate((el) => {
+              const input = el.matches("input[type='radio']") ? el : el.control || el.querySelector("input[type='radio']");
+              const selected = input || el;
+              return Boolean(selected.checked) ||
+                selected.getAttribute("aria-checked") === "true" ||
+                selected.getAttribute("aria-pressed") === "true" ||
+                selected.classList.contains("selected") ||
+                ["on", "checked"].includes(selected.getAttribute("data-state"));
+            }).catch(() => false);
             if (persisted) {
               log("ashby_group_option_selected", { fieldId: decision.fieldId, label: decision.label, answer: wanted });
               return { filled: true };
@@ -466,4 +483,6 @@ module.exports = {
   nextButton: greenhouse.nextButton,
   submitButton: greenhouse.submitButton,
   verifySubmission,
+  choiceMatchers,
+  groupTextMatchesQuestion,
 };
