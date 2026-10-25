@@ -354,8 +354,6 @@ async function fillComboboxLikeField(frame, locator, answer, log, decision, alia
       }
     }
 
-    await locator.press("Enter", { timeout: 1000 }).catch(() => {});
-    await frame.waitForTimeout(150);
     const value = await locator.inputValue({ timeout: 1000 }).catch(() => "");
     const normalizedValue = normalizeText(value);
     const normalizedWanted = normalizeText(wanted);

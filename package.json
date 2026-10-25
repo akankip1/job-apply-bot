@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "node scripts/check-syntax.js",
-    "test": "node scripts/test-status-model.js && node scripts/test-submission-verification.js && node scripts/test-answer-safety.js && node scripts/test-form-verification.js && node scripts/test-human-verification.js",
+    "test": "node scripts/test-status-model.js && node scripts/test-submission-verification.js && node scripts/test-answer-safety.js && node scripts/test-form-verification.js && node scripts/test-human-verification.js && node scripts/test-dry-run-guard.js",
     "dry-run": "node apply.js",
     "submit": "node apply.js --submit",
     "mark-results": "node scripts/mark-run-results.js",

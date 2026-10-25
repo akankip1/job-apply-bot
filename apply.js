@@ -9,6 +9,7 @@ const { statusToBucket } = require("./lib/runResults");
 const { createAnswerPlan, validatePlan, validateResume } = require("./lib/answerPlan");
 const { initEmbedder } = require("./lib/embedClassify");
 const { hasHumanVerification, waitForHumanVerification } = require("./lib/humanVerification");
+const { installDryRunGuard } = require("./lib/dryRunGuard");
 const { detectAdapter } = require("./platforms");
 
 const ROOT = __dirname;
@@ -340,6 +341,8 @@ async function main() {
     headless: false,
     viewport: { width: 1366, height: 900 },
   });
+
+  if (!SUBMIT_MODE) await installDryRunGuard(context);
 
   const results = [];
   try {
