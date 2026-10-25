@@ -46,6 +46,7 @@ const mockProfile = {
 const mockAnswers = {
   sexual_orientation: "Heterosexual",
   how_did_you_hear: "LinkedIn",
+  related_to_company_employee: "No",
   work_authorization_any_us_employer_now_future: "Yes",
   located_in_european_union: "No"
 };
@@ -130,7 +131,11 @@ async function runTests() {
 
   // Basic identity (Ashby specific IDs)
   await assertMatch("Legal Full Name", "fullName", mockProfile.standard.fullName, "text", "_systemfield_name");
+  await assertMatch("What is your Legal First Name?", "firstName", mockProfile.standard.firstName);
+  await assertMatch("What is your Legal Last Name?", "lastName", mockProfile.standard.lastName);
+  await assertMatch("What is your Preferred Last Name?", "lastName", mockProfile.standard.lastName);
   await assertMatch("Email", "email", mockProfile.standard.email, "email", "_systemfield_email");
+  await assertMatch("Do you have any friends or relatives currently employed at Example Corp?", "relatedToCompanyEmployee", "No");
 
   // Demographic checkboxes
   await assertMatch("South Asian", "demographicOption", "Yes", "checkbox");
