@@ -78,6 +78,10 @@ Pass `--person <name>` to scope the run to that directory.
 6. Add job URLs to `people/<name>/jobs.txt` (one per line), or use the add-tabs script.
 7. Dry run with `node apply.js --person <name> --limit 1`.
 
+### Accelerate profile setup with GenAI
+
+Use the copy-ready [GenAI profile intake prompt](./docs/PROFILE_INTAKE_PROMPT.md). It asks every setup question in one response, then generates polished contents for `profile.md`, `answers.json`, and `config.json` after the applicant replies.
+
 Everything under `people/<name>/` is private local data and is ignored by Git. Do not force-add profiles, reusable answers, resumes, queues, browser sessions, logs, or run artifacts.
 
 ## Workflow
